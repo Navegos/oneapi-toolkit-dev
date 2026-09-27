@@ -12,65 +12,79 @@ export class LinuxLinks extends AbstractLinks {
   // Private constructor to prevent instantiation
   private constructor() {
     super()
-    // Map of Rocm SemVer version to apt repository URL
-    this.rocmVersionToURL = new Map([
-      ['7.2.4', 'https://repo.radeon.com/rocm/apt/7.2.4'],
-      ['7.2.3', 'https://repo.radeon.com/rocm/apt/7.2.3'],
-      ['7.2.2', 'https://repo.radeon.com/rocm/apt/7.2.2'],
-      ['7.2.1', 'https://repo.radeon.com/rocm/apt/7.2.1'],
-      ['7.2.0', 'https://repo.radeon.com/rocm/apt/7.2'],
-      ['7.1.1', 'https://repo.radeon.com/rocm/apt/7.1.1'],
-      ['7.1.0', 'https://repo.radeon.com/rocm/apt/7.1'],
-      ['7.0.3', 'https://repo.radeon.com/rocm/apt/7.0.3'],
-      ['7.0.2', 'https://repo.radeon.com/rocm/apt/7.0.2'],
-      ['7.0.1', 'https://repo.radeon.com/rocm/apt/7.0.1'],
-      ['7.0.0', 'https://repo.radeon.com/rocm/apt/7.0'],
-      ['6.4.4', 'https://repo.radeon.com/rocm/apt/6.4.4'],
-      ['6.4.3', 'https://repo.radeon.com/rocm/apt/6.4.3'],
-      ['6.4.2', 'https://repo.radeon.com/rocm/apt/6.4.2'],
-      ['6.4.1', 'https://repo.radeon.com/rocm/apt/6.4.1'],
-      ['6.4.0', 'https://repo.radeon.com/rocm/apt/6.4'],
-      ['6.3.4', 'https://repo.radeon.com/rocm/apt/6.3.4'],
-      ['6.3.3', 'https://repo.radeon.com/rocm/apt/6.3.3'],
-      ['6.3.2', 'https://repo.radeon.com/rocm/apt/6.3.2'],
-      ['6.3.1', 'https://repo.radeon.com/rocm/apt/6.3.1'],
-      ['6.3.0', 'https://repo.radeon.com/rocm/apt/6.3'],
-      ['6.2.4', 'https://repo.radeon.com/rocm/apt/6.2.4'],
-      ['6.2.3', 'https://repo.radeon.com/rocm/apt/6.2.3'],
-      ['6.2.2', 'https://repo.radeon.com/rocm/apt/6.2.2'],
-      ['6.2.1', 'https://repo.radeon.com/rocm/apt/6.2.1'],
-      ['6.2.0', 'https://repo.radeon.com/rocm/apt/6.2'],
-      ['6.1.5', 'https://repo.radeon.com/rocm/apt/6.1.5'],
-      ['6.1.4', 'https://repo.radeon.com/rocm/apt/6.1.4'],
-      ['6.1.3', 'https://repo.radeon.com/rocm/apt/6.1.3'],
-      ['6.1.2', 'https://repo.radeon.com/rocm/apt/6.1.2'],
-      ['6.1.1', 'https://repo.radeon.com/rocm/apt/6.1.1'],
-      ['6.1.0', 'https://repo.radeon.com/rocm/apt/6.1'],
-      ['6.0.3', 'https://repo.radeon.com/rocm/apt/6.0.3'],
-      ['6.0.2', 'https://repo.radeon.com/rocm/apt/6.0.2'],
-      ['6.0.1', 'https://repo.radeon.com/rocm/apt/6.0.1'],
-      ['6.0.0', 'https://repo.radeon.com/rocm/apt/6.0'],
-      ['5.7.3', 'https://repo.radeon.com/rocm/apt/5.7.3'],
-      ['5.7.2', 'https://repo.radeon.com/rocm/apt/5.7.2'],
-      ['5.7.1', 'https://repo.radeon.com/rocm/apt/5.7.1'],
-      ['5.7.0', 'https://repo.radeon.com/rocm/apt/5.7'],
-      ['5.6.1', 'https://repo.radeon.com/rocm/apt/5.6.1'],
-      ['5.6.0', 'https://repo.radeon.com/rocm/apt/5.6'],
-      ['5.5.3', 'https://repo.radeon.com/rocm/apt/5.5.3'],
-      ['5.5.2', 'https://repo.radeon.com/rocm/apt/5.5.2'],
-      ['5.5.1', 'https://repo.radeon.com/rocm/apt/5.5.1'],
-      ['5.5.0', 'https://repo.radeon.com/rocm/apt/5.5']
+    this.versionToNetworkURL = new Map([
+      [
+        '2026.1.1',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/5996e26b-f48a-42b1-8db0-b002ad0bd8d7/intel-oneapi-toolkit-2026.1.1.33.sh'
+      ],
+      [
+        '2026.1.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/33cb2a22-ddf1-4aa9-8d68-1f5a118acaf2/intel-oneapi-toolkit-2026.1.0.192.sh'
+      ],
+      [
+        '2026.0.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/71180075-e4e3-4c6f-bbbb-19017ed0cf7d/intel-oneapi-toolkit-2026.0.0.198.sh'
+      ],
+      [
+        '2025.1.2',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/73863085-58a9-4dbb-ae65-83497edb05fa/intel-deep-learning-essentials-2025.1.2.13_offline.sh'
+      ],
+      [
+        '2025.1.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e04d067d-4bce-4eed-a6fc-80a5df45c78c/intel-deep-learning-essentials-2025.1.0.581_offline.sh'
+      ]
+    ])
+
+    this.versionToURL = new Map([
+      [
+        '2026.1.1',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/5996e26b-f48a-42b1-8db0-b002ad0bd8d7/intel-oneapi-toolkit-2026.1.1.33_offline.sh'
+      ],
+      [
+        '2026.1.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/33cb2a22-ddf1-4aa9-8d68-1f5a118acaf2/intel-oneapi-toolkit-2026.1.0.192_offline.sh'
+      ],
+      [
+        '2026.0.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/71180075-e4e3-4c6f-bbbb-19017ed0cf7d/intel-oneapi-toolkit-2026.0.0.198_offline.sh'
+      ],
+      [
+        '2025.1.2',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/73863085-58a9-4dbb-ae65-83497edb05fa/intel-deep-learning-essentials-2025.1.2.13_offline.sh'
+      ],
+      [
+        '2025.1.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e04d067d-4bce-4eed-a6fc-80a5df45c78c/intel-deep-learning-essentials-2025.1.0.581_offline.sh'
+      ]
     ])
   }
 
-  async getLocalURLFromRocmVersion(version: SemVer): Promise<URL> {
-    const link = await super.getLocalURLFromRocmVersion(version)
+  async getLocalURLFromVersion(version: SemVer): Promise<URL> {
+    const link = await super.getLocalURLFromVersion(version)
     const arch: CPUArch = await getArch()
     if (arch === CPUArch.x86_64) {
       return new URL(link.toString())
     } else {
       throw new Error(`Link only available for x86_64: ${arch}`)
     }
+  }
+
+  async getNetworkURLFromVersion(version: SemVer): Promise<URL> {
+    const link = await super.getNetworkURLFromVersion(version)
+    const arch: CPUArch = await getArch()
+    if (arch === CPUArch.x86_64) {
+      return new URL(link.toString())
+    } else {
+      throw new Error(`Link only available for x86_64: ${arch}`)
+    }
+  }
+
+  async getLocalURLFromoneAPIVersion(version: SemVer): Promise<URL> {
+    return this.getLocalURLFromVersion(version)
+  }
+
+  async getNetworkURLFromoneAPIVersion(version: SemVer): Promise<URL> {
+    return this.getNetworkURLFromVersion(version)
   }
 
   static get Instance(): LinuxLinks {

@@ -6,7 +6,6 @@ import {
   jest,
   test
 } from '@jest/globals'
-import * as path from 'path'
 import os from 'os'
 import {SemVer} from 'semver'
 
@@ -34,50 +33,182 @@ describe('updatePath', () => {
     jest.restoreAllMocks()
   })
 
-  test('Linux exports ROCM_PATH and versioned variants', async () => {
+  test('Linux exports ONEAPI_ROOT, explicit component roots, bin paths, and LD_LIBRARY_PATH', async () => {
     jest.spyOn(os, 'platform').mockReturnValue('linux')
-    const version = new SemVer('5.5.1')
+    const version = new SemVer('2026.1.1')
 
-    const rocmPath = await updatePath(version)
+    const oneapiPath = await updatePath(version)
 
-    expect(rocmPath).toBe('/opt/rocm-5.5')
-    expect(exportVariableSpy).toHaveBeenCalledWith('ROCM_PATH', '/opt/rocm-5.5')
+    expect(oneapiPath).toBe('/opt/intel/oneapi')
     expect(exportVariableSpy).toHaveBeenCalledWith(
-      'ROCM_PATH_5_5',
-      '/opt/rocm-5.5'
+      'ONEAPI_ROOT',
+      '/opt/intel/oneapi'
     )
     expect(exportVariableSpy).toHaveBeenCalledWith(
-      'ROCM_PATH_5_5_1',
-      '/opt/rocm-5.5'
+      'ONEAPI_PATH',
+      '/opt/intel/oneapi'
     )
-    expect(addPathSpy).toHaveBeenCalledWith(path.join('/opt/rocm-5.5', 'bin'))
+    expect(exportVariableSpy).toHaveBeenCalledWith('ONEAPI_VERSION', '2026.1.1')
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'ONEAPI_ROOT_2026_1',
+      '/opt/intel/oneapi'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'ONEAPI_ROOT_2026_1_1',
+      '/opt/intel/oneapi'
+    )
+
+    // Component environment variables
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'CMPLR_ROOT',
+      '/opt/intel/oneapi/compiler/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'DNNLROOT',
+      '/opt/intel/oneapi/dnnl/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'DPL_ROOT',
+      '/opt/intel/oneapi/dpl/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'IPPROOT',
+      '/opt/intel/oneapi/ipp/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'IPPCPROOT',
+      '/opt/intel/oneapi/ippcp/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'MKLROOT',
+      '/opt/intel/oneapi/mkl/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'I_MPI_ROOT',
+      '/opt/intel/oneapi/mpi/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'TBBROOT',
+      '/opt/intel/oneapi/tbb/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'TCM_ROOT',
+      '/opt/intel/oneapi/tcm/latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'UMF_ROOT',
+      '/opt/intel/oneapi/umf/latest'
+    )
+
+    // Bin paths added to PATH
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/bin')
+    expect(addPathSpy).toHaveBeenCalledWith(
+      '/opt/intel/oneapi/compiler/latest/bin'
+    )
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/dnnl/latest/bin')
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/ipp/latest/bin')
+    expect(addPathSpy).toHaveBeenCalledWith(
+      '/opt/intel/oneapi/ippcp/latest/bin'
+    )
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/mkl/latest/bin')
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/mpi/latest/bin')
+    expect(addPathSpy).toHaveBeenCalledWith(
+      '/opt/intel/oneapi/ocloc/latest/bin'
+    )
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/tbb/latest/bin')
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/tcm/latest/bin')
+    expect(addPathSpy).toHaveBeenCalledWith('/opt/intel/oneapi/umf/latest/bin')
+
+    // LD_LIBRARY_PATH
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'LD_LIBRARY_PATH',
+      expect.stringContaining('/opt/intel/oneapi/compiler/latest/lib')
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'LD_LIBRARY_PATH',
+      expect.stringContaining('/opt/intel/oneapi/mkl/latest/lib')
+    )
   })
 
-  test('Windows exports HIP_PATH and versioned variants without ROCM_PATH', async () => {
+  test('Windows exports ONEAPI_ROOT, explicit component roots, and bin paths', async () => {
     jest.spyOn(os, 'platform').mockReturnValue('win32')
-    const version = new SemVer('5.5.1')
+    const version = new SemVer('2026.1.1')
 
-    const rocmPath = await updatePath(version)
+    const oneapiPath = await updatePath(version)
 
-    expect(rocmPath).toBe('C:\\Program Files\\AMD\\ROCm\\5.5')
+    expect(oneapiPath).toBe('C:\\Program Files (x86)\\Intel\\oneAPI')
     expect(exportVariableSpy).toHaveBeenCalledWith(
-      'HIP_PATH',
-      'C:\\Program Files\\AMD\\ROCm\\5.5'
+      'ONEAPI_ROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI'
     )
     expect(exportVariableSpy).toHaveBeenCalledWith(
-      'HIP_PATH_5_5',
-      'C:\\Program Files\\AMD\\ROCm\\5.5'
+      'ONEAPI_PATH',
+      'C:\\Program Files (x86)\\Intel\\oneAPI'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith('ONEAPI_VERSION', '2026.1.1')
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'ONEAPI_ROOT_2026_1',
+      'C:\\Program Files (x86)\\Intel\\oneAPI'
     )
     expect(exportVariableSpy).toHaveBeenCalledWith(
-      'HIP_PATH_5_5_1',
-      'C:\\Program Files\\AMD\\ROCm\\5.5'
+      'ONEAPI_ROOT_2026_1_1',
+      'C:\\Program Files (x86)\\Intel\\oneAPI'
     )
-    expect(exportVariableSpy).not.toHaveBeenCalledWith(
-      'ROCM_PATH',
-      expect.anything()
+
+    // Component environment variables
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'CMPLR_ROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\compiler\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'DNNLROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\dnnl\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'DPL_ROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\dpl\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'IPPROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\ipp\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'IPPCPROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\ippcp\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'MKLROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'I_MPI_ROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\mpi\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'TBBROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\tbb\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'TCM_ROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\tcm\\latest'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'UMF_ROOT',
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\umf\\latest'
+    )
+
+    // Bin paths added to PATH
+    expect(addPathSpy).toHaveBeenCalledWith(
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\bin'
     )
     expect(addPathSpy).toHaveBeenCalledWith(
-      'C:\\Program Files\\AMD\\ROCm\\5.5\\bin'
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\compiler\\latest\\bin'
+    )
+    expect(addPathSpy).toHaveBeenCalledWith(
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\latest\\bin'
+    )
+    expect(addPathSpy).toHaveBeenCalledWith(
+      'C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\bin'
     )
   })
 })

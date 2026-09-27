@@ -2,9 +2,9 @@ import {AbstractLinks} from '../../src/links/links'
 import {SemVer} from 'semver'
 import {WindowsLinks} from '../../src/links/windows-links'
 
-test.concurrent('Windows Rocm versions in descending order', async () => {
+test.concurrent('Windows oneAPI versions in descending order', async () => {
   const wLinks: AbstractLinks = WindowsLinks.Instance
-  const versions = wLinks.getAvailableLocalRocmVersions()
+  const versions = wLinks.getAvailableLocaloneAPIVersions()
   for (let i = 0; i < versions.length - 1; i++) {
     const versionA: SemVer = versions[i]
     const versionB: SemVer = versions[i + 1]
@@ -13,11 +13,11 @@ test.concurrent('Windows Rocm versions in descending order', async () => {
 })
 
 test.concurrent(
-  'Windows Rocm version to URL map contains valid URLs',
+  'Windows oneAPI version to URL map contains valid URLs',
   async () => {
-    for (const version of WindowsLinks.Instance.getAvailableLocalRocmVersions()) {
+    for (const version of WindowsLinks.Instance.getAvailableLocaloneAPIVersions()) {
       const url =
-        await WindowsLinks.Instance.getLocalURLFromRocmVersion(version)
+        await WindowsLinks.Instance.getLocalURLFromoneAPIVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }
@@ -25,15 +25,15 @@ test.concurrent(
 
 test.concurrent('There is at least windows 1 version url pair', async () => {
   expect(
-    WindowsLinks.Instance.getAvailableLocalRocmVersions().length
+    WindowsLinks.Instance.getAvailableLocaloneAPIVersions().length
   ).toBeGreaterThanOrEqual(1)
 })
 
 test.concurrent(
-  'Windows Rocm network versions in descending order',
+  'Windows oneAPI network versions in descending order',
   async () => {
     const wLinks = WindowsLinks.Instance
-    const versions = wLinks.getAvailableNetworkRocmVersions()
+    const versions = wLinks.getAvailableNetworkoneAPIVersions()
     for (let i = 0; i < versions.length - 1; i++) {
       const versionA: SemVer = versions[i]
       const versionB: SemVer = versions[i + 1]
@@ -43,11 +43,11 @@ test.concurrent(
 )
 
 test.concurrent(
-  'Windows network Rocm version to URL map contains valid URLs',
+  'Windows network oneAPI version to URL map contains valid URLs',
   async () => {
-    for (const version of WindowsLinks.Instance.getAvailableNetworkRocmVersions()) {
+    for (const version of WindowsLinks.Instance.getAvailableNetworkoneAPIVersions()) {
       const url: URL =
-        await WindowsLinks.Instance.getNetworkURLFromRocmVersion(version)
+        await WindowsLinks.Instance.getNetworkURLFromoneAPIVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }
@@ -57,7 +57,7 @@ test.concurrent(
   'There is at least windows network 1 version url pair',
   async () => {
     expect(
-      WindowsLinks.Instance.getAvailableNetworkRocmVersions().length
+      WindowsLinks.Instance.getAvailableNetworkoneAPIVersions().length
     ).toBeGreaterThanOrEqual(1)
   }
 )

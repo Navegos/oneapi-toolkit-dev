@@ -13,12 +13,17 @@ const config = {
     format: 'es',
     sourcemap: true
   },
+  context: 'this',
   plugins: [
     typescript(),
     nodeResolve({preferBuiltins: true}),
     commonjs(),
     json()
-  ]
+  ],
+  onwarn(warning, warn) {
+    if (warning.code === 'CIRCULAR_DEPENDENCY') return
+    warn('warn', warning)
+  }
 }
 
 export default config

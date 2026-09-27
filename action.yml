@@ -1,23 +1,27 @@
-name: 'rocm-toolkit-dev'
-description: 'Installs Rocm Toolkit and adds it to PATH'
+name: 'oneapi-toolkit-dev'
+description: 'Installs Intel(R) oneAPI Toolkit and Intel(R) Deep Learning Essentials and adds to PATH'
 author: '@DevelVitorF'
 inputs:
-  rocm:
-    description: 'Rocm version'
+  product:
+    description: "Product to install: 'toolkit' (Intel oneAPI Toolkit) or 'deep-learning-essentials' (Intel Deep Learning Essentials)"
     required: false
-    default: '5.5.1'
+    default: 'toolkit'
+  oneapi:
+    description: 'oneAPI or Deep Learning Essentials version (e.g. 2026.1.1, 2026.1.0, 2026.0.0, 2025.3.3)'
+    required: false
+    default: '2026.1.1'
   sub-packages:
     description: 'Only installs specified subpackages, must be in the form of a JSON array.'
     required: false
     default: '[]'
-  non-rocm-sub-packages:
+  non-oneapi-sub-packages:
     description:
-      'Only installs specified subpackages that do not have the rocm prefix,
+      'Only installs specified subpackages that do not have the intel-oneapi prefix,
       must be in the form of a JSON array.'
     required: false
     default: '[]'
   method:
-    description: "Installation method: 'local' or 'network'."
+    description: "Installation method: 'local' (offline installer), 'network' (online installer/APT), or 'apt'."
     required: false
     default: 'local'
   linux-local-args:
@@ -37,15 +41,15 @@ inputs:
     required: false
     default: 'log.txt'
 outputs:
-  ROCM_PATH:
-    description: 'Path to Rocm installation'
-  HIP_PATH:
-    description: 'Path to HIP SDK installation'
-  rocm:
-    description: 'Version of Rocm installed'
+  ONEAPI_ROOT:
+    description: 'Path to Intel oneAPI installation root'
+  ONEAPI_PATH:
+    description: 'Path to Intel oneAPI installation root'
+  oneapi:
+    description: 'Version of oneAPI installed'
 runs:
   using: 'node24'
   main: dist/index.js
 branding:
   icon: box
-  color: green
+  color: blue

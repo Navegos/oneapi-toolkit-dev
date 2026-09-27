@@ -1,196 +1,245 @@
-# rocm-toolkit-dev
+# oneapi-toolkit-dev
 
-[![CI](https://github.com/Navegos/rocm-toolkit-dev/actions/workflows/CI.yml/badge.svg)](https://github.com/Navegos/rocm-toolkit-dev/actions/workflows/CI.yml)
-[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-rocm--toolkit--dev-blue?logo=github)](https://github.com/marketplace/actions/rocm-toolkit-dev)
+[![CI](https://github.com/Navegos/oneapi-toolkit-dev/actions/workflows/CI.yml/badge.svg)](https://github.com/Navegos/oneapi-toolkit-dev/actions/workflows/CI.yml)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-oneapi--toolkit--dev-blue?logo=github)](https://github.com/marketplace/actions/oneapi-toolkit-dev)
+[![Coverage](badges/coverage.svg)](badges/coverage.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-GitHub Action to install and configure the [AMD ROCm™](https://rocm.docs.amd.com/en/latest) and HIP SDK on GitHub Actions runners.
+A GitHub Action to install, configure, and cache the **Intel® oneAPI Toolkit** and **Intel® Deep Learning Essentials** on GitHub Actions runners (Linux and Windows).
 
-The action automatically sets the installation directory in `GITHUB_ENV` (`ROCM_PATH` and `ROCM_PATH_<version>` on Linux; `HIP_PATH` and `HIP_PATH_<version>` on Windows) and prepends the compiler `bin` directory to `GITHUB_PATH` so tools such as `hipcc` and `clang` are immediately available in subsequent workflow steps.
+The action automatically resolves component installation directories, sets all necessary structural environment variables (`ONEAPI_ROOT`, `CMPLR_ROOT`, `MKLROOT`, etc.), and adds the compiler and tool `bin` directories to `GITHUB_PATH` and libraries to `LD_LIBRARY_PATH` so developer tools like `icx`, `icpx`, `dpcpp`, `sycl-ls`, and `ocloc` are immediately available in subsequent workflow steps.
 
 ---
 
 ## Supported Platforms & Architectures
 
-| OS          | Supported Runner Images                               | Architecture          |
-| ----------- | ----------------------------------------------------- | --------------------- |
-| **Linux**   | `ubuntu-26.04`, `ubuntu-24.04`, `ubuntu-22.04`        | `x86_64` (`x64`) only |
-| **Windows** | `windows-2025-vs2026`, `windows-2025`, `windows-2022` | `x86_64` (`x64`) only |
+| Operating System | Supported Runner Images                               | Architecture          |
+| :--------------- | :---------------------------------------------------- | :-------------------- |
+| **Linux**        | `ubuntu-26.04`, `ubuntu-24.04`, `ubuntu-22.04`        | `x86_64` (`x64`) only |
+| **Windows**      | `windows-2025-vs2026`, `windows-2025`, `windows-2022` | `x86_64` (`x64`) only |
 
 > [!NOTE]
-> ARM64 is not currently supported. Only `x86_64` (`x64`) runners are supported.
-
-### Supported ROCm Versions
-
-- **Windows**: `7.2.0`, `7.1.1`, `6.4.2`, `6.2.4`, `6.1.2`, `5.7.1`, `5.5.1`
-- **Linux**: `7.2.0`–`7.2.4`, `7.1.0`–`7.1.1`, `7.0.0`–`7.0.3`, `6.4.0`–`6.4.4`, `6.3.0`–`6.3.4`, `6.2.0`–`6.2.4`, `6.1.0`–`6.1.5`, `6.0.0`–`6.0.3`, `5.7.0`–`5.7.3`, `5.6.0`–`5.6.1`, `5.5.0`–`5.5.3`
+> ARM64 runners are not currently supported by Intel oneAPI installers. Only `x86_64` (`x64`) runner architectures are supported.
 
 ---
 
-## Inputs
+## Supported Versions
 
-| Input                   | Description                                                                                    | Required | Default     |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | -------- | ----------- |
-| `rocm`                  | ROCm version to install.                                                                       | No       | `'5.5.1'`   |
-| `sub-packages`          | JSON array of specific subpackages to install (e.g. `'["hip-sdk"]'`).                          | No       | `'[]'`      |
-| `non-rocm-sub-packages` | JSON array of subpackages without `rocm-` prefix (e.g. `'["rocblas"]'`).                       | No       | `'[]'`      |
-| `method`                | Installation method: `'local'` or `'network'`. On Linux, installations use the APT repository. | No       | `'local'`   |
-| `linux-local-args`      | Arguments for the local installer as a JSON string array.                                      | No       | `'[]'`      |
-| `use-github-cache`      | Cache installer on GitHub Actions server cache.                                                | No       | `'true'`    |
-| `use-local-cache`       | Cache installer on runner disk.                                                                | No       | `'true'`    |
-| `log-file-suffix`       | Suffix for uploaded log artifact.                                                              | No       | `'log.txt'` |
+### Intel® oneAPI Toolkit
 
----
+- `2026.1.1` _(Default)_
+- `2026.1.0`
+- `2026.0.1`
+- `2026.0.0`
 
-## Outputs
+### Intel® Deep Learning Essentials
 
-| Output      | Description                             |
-| ----------- | --------------------------------------- |
-| `ROCM_PATH` | Installation path of ROCm (Linux).      |
-| `HIP_PATH`  | Installation path of HIP SDK (Windows). |
-| `rocm`      | Version of ROCm installed.              |
+- `2026.1.4`, `2026.1.3`, `2026.1.2`, `2026.1.1`, `2026.1.0`, `2026.0.0`
+- `2025.3.3`, `2025.3.2`, `2025.3.1`, `2025.3.0`
+- `2025.2.1`, `2025.2.0`
+- `2025.1.3`, `2025.1.2`, `2025.1.1`, `2025.1.0`
+- `2025.0.2`, `2025.0.1`
 
 ---
 
-## Environment Variables Set
+## Action Inputs
 
-The action automatically exports the following environment variables:
-
-- **Linux**:
-  - `ROCM_PATH`: Root ROCm path (e.g. `/opt/rocm-5.5.1` or `/opt/rocm`)
-  - `ROCM_PATH_<version>`: Version-specific ROCm path
-  - Adds `$ROCM_PATH/bin` to `PATH`
-- **Windows**:
-  - `HIP_PATH`: Root HIP SDK path
-  - `HIP_PATH_<version>`: Version-specific HIP SDK path
-  - Adds `$HIP_PATH\bin` to `PATH`
+| Input                     | Type    | Required | Default      | Description                                                                                                                                                   |
+| :------------------------ | :------ | :------- | :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `product`                 | String  | No       | `'toolkit'`  | Target product to install: `'toolkit'` (Intel oneAPI Toolkit) or `'deep-learning-essentials'` (Intel Deep Learning Essentials).                               |
+| `oneapi`                  | String  | No       | `'2026.1.1'` | Target version of oneAPI Toolkit or Deep Learning Essentials.                                                                                                 |
+| `sub-packages`            | JSON    | No       | `'[]'`       | JSON array of specific subpackages to install (e.g. `'["compiler-dpcpp-cpp", "mkl"]'`). Packages automatically receive the `intel-oneapi-` prefix if omitted. |
+| `non-oneapi-sub-packages` | JSON    | No       | `'[]'`       | JSON array of package names without `intel-oneapi-` prefix.                                                                                                   |
+| `method`                  | String  | No       | `'local'`    | Installation method: `'local'` (offline standalone installer), `'network'` (online installer on Windows, official APT repo on Linux), or `'apt'`.             |
+| `linux-local-args`        | JSON    | No       | `'[]'`       | Additional custom arguments passed to the offline Linux `.sh` installer script in JSON array format.                                                          |
+| `use-github-cache`        | Boolean | No       | `'true'`     | Cache the downloaded installer in GitHub Actions cache to speed up subsequent workflow runs.                                                                  |
+| `use-local-cache`         | Boolean | No       | `'true'`     | Cache the downloaded installer on the runner's local disk via tool-cache.                                                                                     |
+| `log-file-suffix`         | String  | No       | `'log.txt'`  | Suffix added to the uploaded installation log artifact.                                                                                                       |
 
 ---
 
-## Example Usage
+## Action Outputs
 
-### Basic Example
+| Output        | Description                                                             |
+| :------------ | :---------------------------------------------------------------------- |
+| `ONEAPI_ROOT` | Absolute path to the Intel oneAPI root directory on the runner machine. |
+| `ONEAPI_PATH` | Alias for `ONEAPI_ROOT`.                                                |
+| `oneapi`      | Exact version of the toolkit or DLE suite installed.                    |
+
+---
+
+## Environment Variables & Components Matrix
+
+The action exports root environment variables and configures paths for all core Intel oneAPI components:
+
+### Root Variables
+
+- **Linux**: `ONEAPI_ROOT` = `/opt/intel/oneapi`, `ONEAPI_PATH` = `/opt/intel/oneapi`
+- **Windows**: `ONEAPI_ROOT` = `C:\Program Files (x86)\Intel\oneAPI`, `ONEAPI_PATH` = `C:\Program Files (x86)\Intel\oneAPI`
+- `ONEAPI_VERSION`: Target installed version (e.g. `2026.1.1`)
+- `ONEAPI_ROOT_<major>_<minor>` (e.g. `ONEAPI_ROOT_2026_1`)
+- `ONEAPI_ROOT_<major>_<minor>_<patch>` (e.g. `ONEAPI_ROOT_2026_1_1`)
+
+### Component Roots Matrix
+
+| Component Name               | Environment Variable | Subdirectory Path             | Added to `PATH` | Added to `LD_LIBRARY_PATH` (Linux) |
+| :--------------------------- | :------------------- | :---------------------------- | :-------------: | :--------------------------------: |
+| **Root oneAPI**              | `ONEAPI_ROOT`        | `.../oneapi`                  |    `.../bin`    |             `.../lib`              |
+| **compiler (DPC++/C++)**     | `CMPLR_ROOT`         | `.../oneapi/compiler/latest`  |    `.../bin`    |             `.../lib`              |
+| **dnnl (oneDNN)**            | `DNNLROOT`           | `.../oneapi/dnnl/latest`      |    `.../bin`    |             `.../lib`              |
+| **dpl (oneDPL)**             | `DPL_ROOT`           | `.../oneapi/dpl/latest`       |        —        |                 —                  |
+| **ipp (Integrated Perf)**    | `IPPROOT`            | `.../oneapi/ipp/latest`       |    `.../bin`    |             `.../lib`              |
+| **ippcp (Cryptography)**     | `IPPCPROOT`          | `.../oneapi/ippcp/latest`     |    `.../bin`    |             `.../lib`              |
+| **mkl (oneMKL)**             | `MKLROOT`            | `.../oneapi/mkl/latest`       |    `.../bin`    |             `.../lib`              |
+| **mpi (oneMPI)**             | `I_MPI_ROOT`         | `.../oneapi/mpi/latest`       |    `.../bin`    |             `.../lib`              |
+| **ocloc (OpenCL offline)**   | _Managed via PATH_   | `.../oneapi/ocloc/latest/bin` |    `.../bin`    |                 —                  |
+| **tbb (oneTBB)**             | `TBBROOT`            | `.../oneapi/tbb/latest`       |    `.../bin`    |             `.../lib`              |
+| **tcm (Task Compute)**       | `TCM_ROOT`           | `.../oneapi/tcm/latest`       |    `.../bin`    |                 —                  |
+| **umf (Unified Mem Finder)** | `UMF_ROOT`           | `.../oneapi/umf/latest`       |    `.../bin`    |             `.../lib`              |
+
+---
+
+## Workflow Examples
+
+### 1. Basic Example (Intel oneAPI Toolkit)
 
 ```yaml
-steps:
-  - uses: actions/checkout@v7
-
-  - name: Install AMD ROCm
-    id: setup-rocm
-    uses: Navegos/rocm-toolkit-dev@v0
-    with:
-      rocm: '5.5.1'
-
-  - name: Verify installation
-    run: hipcc --version
-```
-
-### Linux Subpackages Example (Network Method)
-
-```yaml
-steps:
-  - uses: actions/checkout@v7
-
-  - name: Install HIP SDK and rocblas
-    uses: Navegos/rocm-toolkit-dev@v0
-    with:
-      rocm: '5.5.1'
-      method: 'network'
-      sub-packages: '["hip-sdk"]'
-      non-rocm-sub-packages: '["rocblas"]'
-```
-
----
-
-## Complete CI Workflow Example (`CI.yml`)
-
-The following complete workflow demonstrates cross-platform matrix testing across Linux and Windows runners, testing installation methods, and verifying the toolchain:
-
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [master]
-  pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
+name: Build with Intel oneAPI
+on: [push, pull_request]
 
 jobs:
-  CI:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Intel oneAPI Toolkit
+        uses: Navegos/oneapi-toolkit-dev@v0
+        with:
+          oneapi: '2026.1.1'
+          method: 'local'
+
+      - name: Check Compiler Versions
+        run: |
+          icx --version
+          icpx --version
+          sycl-ls
+```
+
+### 2. Intel Deep Learning Essentials (APT on Linux)
+
+```yaml
+name: PyTorch XPU Build
+on: [push]
+
+jobs:
+  dl-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Intel Deep Learning Essentials
+        uses: Navegos/oneapi-toolkit-dev@v0
+        with:
+          product: 'deep-learning-essentials'
+          oneapi: '2025.1.0'
+          method: 'network'
+
+      - name: Verify Environment
+        run: |
+          echo "CMPLR_ROOT: $CMPLR_ROOT"
+          echo "MKLROOT: $MKLROOT"
+          icpx --version
+```
+
+### 3. Installing Specific Subpackages
+
+```yaml
+name: Minimal oneMKL and Compiler Setup
+on: [push]
+
+jobs:
+  minimal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Compiler and oneMKL Subpackages
+        uses: Navegos/oneapi-toolkit-dev@v0
+        with:
+          method: 'network'
+          sub-packages: '["compiler-dpcpp-cpp", "mkl"]'
+```
+
+### 4. Cross-Platform Matrix Workflow (Linux & Windows)
+
+```yaml
+name: CI Matrix
+on: [push, pull_request]
+
+jobs:
+  test:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-26.04
-          - ubuntu-24.04
-          - ubuntu-22.04
-          - windows-2025-vs2026
-          - windows-2025
-          - windows-2022
+        os: [ubuntu-latest, windows-latest]
         method: [local, network]
-        rocm: ['5.5.1']
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - name: Install AMD ROCm
-        id: test-action
-        uses: Navegos/rocm-toolkit-dev@v0
+      - name: Setup Intel oneAPI
+        id: setup-oneapi
+        uses: Navegos/oneapi-toolkit-dev@v0
         with:
-          rocm: ${{ matrix.rocm }}
+          oneapi: '2026.1.1'
           method: ${{ matrix.method }}
-          log-file-suffix: '${{ matrix.method }}-${{ matrix.os }}'
+          log-file-suffix: '${{ matrix.os }}-${{ matrix.method }}'
 
-      - name: Install subpackages (Linux network only)
-        if: runner.os == 'Linux' && matrix.method == 'network'
-        uses: Navegos/rocm-toolkit-dev@v0
-        with:
-          method: ${{ matrix.method }}
-          sub-packages: '["hip-sdk"]'
-          non-rocm-sub-packages: '["rocblas"]'
-          log-file-suffix: 'hip-sdk-rocblas-${{ matrix.method }}-${{ matrix.os }}'
-
-      - name: Verify outputs
-        run: |
-          echo "ROCm Version: ${{ steps.test-action.outputs.rocm }}"
-          echo "ROCM_PATH: ${{ steps.test-action.outputs.ROCM_PATH }}"
-          echo "HIP_PATH: ${{ steps.test-action.outputs.HIP_PATH }}"
-
-      - name: Test if hipcc compiler is available
-        run: hipcc --version
-
-      - name: List HIP files (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Get-ChildItem $env:HIP_PATH
-          Get-ChildItem $env:HIP_PATH\bin
-          Get-ChildItem $env:HIP_PATH\include
-
-      - name: List ROCm files (Linux)
+      - name: Check Paths (Linux)
         if: runner.os == 'Linux'
         run: |
-          ls -la $ROCM_PATH
-          ls -la $ROCM_PATH/bin
-          ls -la $ROCM_PATH/include
+          echo "ONEAPI_ROOT: $ONEAPI_ROOT"
+          echo "MKLROOT: $MKLROOT"
+          icx --version || true
+
+      - name: Check Paths (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          echo "ONEAPI_ROOT: $env:ONEAPI_ROOT"
+          echo "MKLROOT: $env:MKLROOT"
+          ls $env:ONEAPI_ROOT\bin -ErrorAction SilentlyContinue
 ```
 
 ---
 
-## Publishing to GitHub Marketplace Checklist
+## Package & Dependencies
 
-To publish this action to the GitHub Actions Marketplace:
+- **Runtime Engine**: Node 24 (`runs.using: 'node24'`).
+- **Distribution Bundle**: The action is pre-bundled into a single, standalone distribution file (`dist/index.js`) using Rollup. No runtime package installations or build steps are required on the runner machine.
+- **Dependencies**:
+  - `@actions/core`: Action inputs, outputs, logging, and environment variable exports.
+  - `@actions/exec`: Process execution for APT package manager and standalone installers.
+  - `@actions/cache`: GitHub Actions server cache for downloaded installer files.
+  - `@actions/tool-cache`: Local runner caching for installer executables.
+  - `@actions/artifact`: Automatic installation log artifact uploads.
+  - `semver`: Strict semantic version comparison and validation.
 
-1. Ensure the repository is **Public**.
-2. Make sure `action.yml` is present in the repository root (includes `name`, `description`, `runs`, `branding`).
-3. Bundle `dist/index.js` as a standalone executable (run `npm run all` or `npm run package`).
-4. Commit the latest `dist/` and push to GitHub.
-5. Create a Git release tag (e.g. `v0.2.40` and move/update `v0` major tag).
-6. In GitHub Releases, click **Draft a new release**, choose the tag, and check **"Publish this Action to the GitHub Marketplace"**.
+---
+
+## Official Documentation References
+
+- [Intel® oneAPI Toolkit Installation Guide for Linux*](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-linux/latest/overview.html)
+- [Linux oneAPI Toolkit Install with APT](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-linux/latest/install-oneapi-toolkit-with-apt.html)
+- [Linux oneAPI Toolkit Install with Offline/Online Installer](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-linux/latest/install-oneapi-toolkit-with-installer.html)
+- [Linux oneAPI Toolkit Command Line Options](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-linux/latest/command-line-options.html)
+- [Linux Deep Learning Essentials Install with APT](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-linux/latest/install-deep-learning-essentials-with-apt.html)
+- [Linux Deep Learning Essentials Install with Installer](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-linux/latest/install-deep-learning-essentials-with-installer.html)
+- [Windows oneAPI Toolkit Install with Installer](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-windows/latest/install-oneapi-toolkit-with-installer.html)
+- [Windows oneAPI Toolkit Command Line Options](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-windows/latest/command-line-options.html)
+- [Windows Deep Learning Essentials Install with Installer](https://www.intel.com/content/www/us/en/docs/oneapi-toolkit/installation-guide-windows/latest/install-deep-learning-essentials-with-installer.html)
 
 ---
 

@@ -9,15 +9,17 @@ import path from 'node:path'
 import * as os from 'node:os'
 import fs from 'node:fs'
 import {WindowsLinks} from './links/windows-links.js'
+import {LinuxLinks} from './links/linux-links.js'
 import {aptSetup, aptInstall} from './apt-installer.js'
 
 export async function install(
   executablePath: string,
   version: SemVer,
   subPackagesArray: string[] = [],
-  _linuxLocalArgsArray: string[] = [],
+  linuxLocalArgsArray: string[] = [],
   method: string = 'local',
-  logFileSuffix: string = ''
+  logFileSuffix: string = '',
+  product: string = 'toolkit'
 ): Promise<void> {
   const archType = await getArch()
   if (archType !== CPUArch.x86_64) {
@@ -33,24 +35,18 @@ export async function install(
     )
   }
 
-  // Linux uses apt-installer only
-  if (osType === OSType.linux) {
-    core.debug(`Installing ROCm ${version} using apt-installer`)
+  // Linux using APT installer
+  if (osType === OSType.linux && (method === 'network' || method === 'apt')) {
+    core.debug(`Installing oneAPI ${version} using apt-installer`)
     await aptSetup(version)
-    await aptInstall(version, subPackagesArray)
+    await aptInstall(version, subPackagesArray, [], product)
     return
   }
 
-  // Windows: only accepts versions as in WindowsLinks
-  const winLinks = WindowsLinks.Instance
-  const availableVersions = winLinks.getAvailableLocalRocmVersions()
-  if (!availableVersions.some(v => v.compare(version) === 0)) {
-    throw new Error(`Version not available: ${version}`)
-  }
+  // Offline / local installer execution
+  const logDir = os.tmpdir()
+  const logPath = path.join(logDir, 'installer_log.txt')
 
-  const logPath = path.join(os.tmpdir(), 'installer_log.txt')
-
-  // Execution options which contain callback functions for stdout and stderr of install process
   const execOptions = {
     listeners: {
       stdout: (data: Buffer) => {
@@ -62,63 +58,104 @@ export async function install(
     }
   }
 
-  // Windows uses exe file installer only through PowerShell
-  const command = 'powershell'
-  const installArgs = [
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    `$process = Start-Process -FilePath "${executablePath}" -ArgumentList "-install","-log","${logPath}" -NoNewWindow -Wait -PassThru; exit $process.ExitCode`
-  ]
+  if (osType === OSType.windows) {
+    const winLinks = WindowsLinks.Instance
+    const availableVersions = winLinks.getAvailableLocalVersions()
+    if (!availableVersions.some(v => v.compare(version) === 0)) {
+      core.warning(
+        `Version ${version} not explicitly in windows-links map, attempting install`
+      )
+    }
 
-  // Run installer
+    const installerArgs = [
+      '-s',
+      '-a',
+      '--silent',
+      '--eula',
+      'accept',
+      '--action',
+      'install'
+    ]
+    if (subPackagesArray.length > 0) {
+      installerArgs.push('--components', subPackagesArray.join(':'))
+    }
+    installerArgs.push('--log-dir', logDir)
+
+    const argsListFormatted = installerArgs.map(arg => `"${arg}"`).join(',')
+    const powershellCommand = [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `$process = Start-Process -FilePath "${executablePath}" -ArgumentList ${argsListFormatted} -NoNewWindow -Wait -PassThru; exit $process.ExitCode`
+    ]
+
+    try {
+      core.debug(`Running Windows installer: ${executablePath}`)
+      const exitCode = await exec('powershell', powershellCommand, execOptions)
+      core.debug(`Installer exit code: ${exitCode}`)
+    } catch (error) {
+      core.warning(`Error during installation: ${error}`)
+      throw error
+    }
+  } else if (osType === OSType.linux) {
+    const linuxLinks = LinuxLinks.Instance
+    const availableVersions = linuxLinks.getAvailableLocalVersions()
+    if (!availableVersions.some(v => v.compare(version) === 0)) {
+      core.warning(
+        `Version ${version} not explicitly in linux-links map, attempting install`
+      )
+    }
+
+    const installerArgs = [
+      executablePath,
+      '-s',
+      '-a',
+      '--silent',
+      '--eula',
+      'accept',
+      '--action',
+      'install'
+    ]
+    if (subPackagesArray.length > 0) {
+      installerArgs.push('--components', subPackagesArray.join(':'))
+    }
+    if (linuxLocalArgsArray.length > 0) {
+      installerArgs.push(...linuxLocalArgsArray)
+    }
+
+    try {
+      core.debug(`Running Linux installer script: ${executablePath}`)
+      await exec('chmod', ['+x', executablePath])
+      const exitCode = await exec('sudo', ['sh', ...installerArgs], execOptions)
+      core.debug(`Installer exit code: ${exitCode}`)
+    } catch (error) {
+      core.warning(`Error during installation: ${error}`)
+      throw error
+    }
+  }
+
+  // Always upload installation log regardless of error
   try {
-    core.debug(`Running install executable: ${executablePath}`)
-    const exitCode = await exec(command, installArgs, execOptions)
-    core.debug(`Installer exit code: ${exitCode}`)
-  } catch (error) {
-    core.warning(`Error during installation: ${error}`)
-    throw error
-  } finally {
-    // Always upload installation log regardless of error
     const osRelease = await getRelease()
     const artifactClient = new DefaultArtifactClient()
+    const artifactName = `oneapi-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`
+
     if (osType === OSType.windows) {
       if (fs.existsSync(logPath)) {
-        const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`
-        try {
-          await artifactClient.uploadArtifact(
-            artifactName,
-            [logPath],
-            os.tmpdir()
-          )
-        } catch (error) {
-          core.debug(`Upload artifact error: ${error}`)
-        }
+        await artifactClient.uploadArtifact(artifactName, [logPath], logDir)
       }
     } else if (osType === OSType.linux) {
-      const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`
-      const candidates = ['/var/log/rocm-installer.log']
+      const candidates = ['/var/log/intel_installer.log', logPath]
       const files = await filterReadable(candidates)
-      const username = os.userInfo().username
       if (files.length > 0) {
-        for (const file of files) {
-          await exec(`sudo chmod 644 ${file}`)
-          await exec(`sudo chown ${username} ${file}`)
-        }
-        const rootDirectory = '/var/log'
-        try {
-          await artifactClient.uploadArtifact(
-            artifactName,
-            files,
-            rootDirectory
-          )
-        } catch (error) {
-          core.debug(`Upload artifact error: ${error}`)
-        }
-      } else {
-        core.debug(`No log file to upload`)
+        await artifactClient.uploadArtifact(
+          artifactName,
+          files,
+          path.dirname(files[0])
+        )
       }
     }
+  } catch (error) {
+    core.debug(`Upload artifact error: ${error}`)
   }
 }

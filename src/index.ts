@@ -13,15 +13,20 @@ async function run(): Promise<void> {
     // Only Windows and Linux on x86_64 are supported
     const osType = await getOs()
 
-    const rocm: string = core.getInput('rocm')
-    core.debug(`Desired Rocm version: ${rocm}`)
+    const oneapi: string =
+      core.getInput('oneapi') || core.getInput('oneapi') || '2026.1.1'
+    core.debug(`Desired oneAPI version: ${oneapi}`)
+    const product: string = core.getInput('product') || 'toolkit'
+    core.debug(`Desired product: ${product}`)
     const subPackagesArgName = 'sub-packages'
     const subPackages: string = core.getInput(subPackagesArgName)
     core.debug(`Desired subPackages: ${subPackages}`)
-    const nonRocmSubPackagesArgName = 'non-rocm-sub-packages'
-    const nonRocmSubPackages: string = core.getInput(nonRocmSubPackagesArgName)
-    core.debug(`Desired nonRocmsubPackages: ${nonRocmSubPackages}`)
-    const methodString: string = core.getInput('method')
+    const nonOneapiSubPackagesArgName = 'non-oneapi-sub-packages'
+    const nonOneapiSubPackages: string =
+      core.getInput(nonOneapiSubPackagesArgName) ||
+      core.getInput('non-oneapi-sub-packages')
+    core.debug(`Desired nonOneapiSubPackages: ${nonOneapiSubPackages}`)
+    const methodString: string = core.getInput('method') || 'local'
     core.debug(`Desired method: ${methodString}`)
     const linuxLocalArgs: string = core.getInput('linux-local-args')
     core.debug(`Desired local linux args: ${linuxLocalArgs}`)
@@ -38,10 +43,10 @@ async function run(): Promise<void> {
       subPackagesArgName
     )
 
-    // Parse nonRocmSubPackages array
-    const nonRocmSubPackagesArray: string[] = await parsePackages(
-      nonRocmSubPackages,
-      nonRocmSubPackagesArgName
+    // Parse nonOneapiSubPackages array
+    const nonOneapiSubPackagesArray: string[] = await parsePackages(
+      nonOneapiSubPackages,
+      nonOneapiSubPackagesArgName
     )
 
     // Parse method
@@ -49,7 +54,7 @@ async function run(): Promise<void> {
     core.debug(`Parsed method: ${methodParsed}`)
 
     // Parse version string
-    const version = await getVersion(rocm, methodParsed)
+    const version = await getVersion(oneapi, methodParsed)
 
     // Parse linuxLocalArgs array
     let linuxLocalArgsArray: string[] = []
@@ -64,31 +69,18 @@ async function run(): Promise<void> {
       }
     }
 
-    // Check if subPackages are specified in 'local' method on Linux
-    if (
-      methodParsed === 'local' &&
-      subPackagesArray.length > 0 &&
-      (await getOs()) === OSType.linux
-    ) {
-      throw new Error(
-        `Subpackages on 'local' method is not supported on Linux, use 'network' instead`
-      )
-    }
-
-    // Linux only installs using the apt AMD repo
+    // Check if APT installer should be used on Linux
     const useAptInstall = await useApt(methodParsed)
-    if (useAptInstall || osType === OSType.linux) {
-      // Setup aptitude repos
+    if (useAptInstall) {
       await aptSetup(version)
-      // Install packages
       const installResult = await aptInstall(
         version,
         subPackagesArray,
-        nonRocmSubPackagesArray
+        nonOneapiSubPackagesArray,
+        product
       )
       core.debug(`Install result: ${installResult}`)
-    } else if (osType === OSType.windows) {
-      // Windows downloads the exe binaries and installs
+    } else if (osType === OSType.windows || osType === OSType.linux) {
       const executablePath: string = await download(
         version,
         methodParsed,
@@ -101,24 +93,24 @@ async function run(): Promise<void> {
         subPackagesArray,
         linuxLocalArgsArray,
         methodString,
-        logFileSuffix
+        logFileSuffix,
+        product
       )
     } else {
       throw new Error(
-        `Install packeages only suuported in wonws or linux, current os, got '${osType}'`
+        `Install packages only supported on Windows or Linux, current os: '${osType}'`
       )
     }
 
-    // Add Rocm environment variables to GitHub environment variables
-    const rocmPath: string = await updatePath(version)
+    // Add oneAPI environment variables to GitHub environment variables
+    const oneapiPath: string = await updatePath(version)
 
     // Set output variables
-    core.setOutput('rocm', rocm)
-    if (osType === OSType.windows) {
-      core.setOutput('HIP_PATH', rocmPath)
-    } else {
-      core.setOutput('ROCM_PATH', rocmPath)
-    }
+    core.setOutput('oneapi', version.toString())
+    core.setOutput('ONEAPI_ROOT', oneapiPath)
+    core.setOutput('ONEAPI_PATH', oneapiPath)
+    // Backward compatibility outputs
+    core.setOutput('oneapi', version.toString())
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error)

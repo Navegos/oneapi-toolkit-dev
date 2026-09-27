@@ -27,13 +27,13 @@ import require$$2$5 from 'child_process';
 import require$$6$2 from 'timers';
 import * as os from 'node:os';
 import os__default from 'node:os';
-import require$$1$7 from 'tty';
+import require$$0$f from 'tty';
 import fs from 'node:fs';
 import * as path$1 from 'node:path';
 import path__default from 'node:path';
-import require$$1$8 from 'fs/promises';
-import require$$0$f from 'constants';
-import require$$0$g from 'punycode';
+import require$$1$7 from 'fs/promises';
+import require$$0$g from 'constants';
+import require$$0$h from 'punycode';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -27345,2938 +27345,9 @@ async function getRelease() {
 
 var execExports = requireExec();
 
-async function execReturnOutput(command, args = []) {
-    let result = '';
-    const execOptions = {
-        listeners: {
-            stdout: (data) => {
-                result += data.toString();
-            },
-            stderr: (data) => {
-                coreExports.debug(`Error: ${data.toString()}`);
-            }
-        }
-    };
-    const exitCode = await execExports.exec(command, args, execOptions);
-    if (exitCode) {
-        coreExports.debug(`Error executing: ${command}. Exit code: ${exitCode}`);
-    }
-    return result.trim();
-}
-
-var re = {exports: {}};
-
-var constants$8;
-var hasRequiredConstants$8;
-
-function requireConstants$8 () {
-	if (hasRequiredConstants$8) return constants$8;
-	hasRequiredConstants$8 = 1;
-
-	// Note: this is the semver.org version of the spec that it implements
-	// Not necessarily the package version of this code.
-	const SEMVER_SPEC_VERSION = '2.0.0';
-
-	const MAX_LENGTH = 256;
-	const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER ||
-	/* istanbul ignore next */ 9007199254740991;
-
-	// Max safe segment length for coercion.
-	const MAX_SAFE_COMPONENT_LENGTH = 16;
-
-	// Max safe length for a build identifier. The max length minus 6 characters for
-	// the shortest version with a build 0.0.0+BUILD.
-	const MAX_SAFE_BUILD_LENGTH = MAX_LENGTH - 6;
-
-	const RELEASE_TYPES = [
-	  'major',
-	  'premajor',
-	  'minor',
-	  'preminor',
-	  'patch',
-	  'prepatch',
-	  'prerelease',
-	];
-
-	constants$8 = {
-	  MAX_LENGTH,
-	  MAX_SAFE_COMPONENT_LENGTH,
-	  MAX_SAFE_BUILD_LENGTH,
-	  MAX_SAFE_INTEGER,
-	  RELEASE_TYPES,
-	  SEMVER_SPEC_VERSION,
-	  FLAG_INCLUDE_PRERELEASE: 0b001,
-	  FLAG_LOOSE: 0b010,
-	};
-	return constants$8;
-}
-
-var debug_1;
-var hasRequiredDebug$1;
-
-function requireDebug$1 () {
-	if (hasRequiredDebug$1) return debug_1;
-	hasRequiredDebug$1 = 1;
-
-	const debug = (
-	  typeof process === 'object' &&
-	  process.env &&
-	  process.env.NODE_DEBUG &&
-	  /\bsemver\b/i.test(process.env.NODE_DEBUG)
-	) ? (...args) => console.error('SEMVER', ...args)
-	  : () => {};
-
-	debug_1 = debug;
-	return debug_1;
-}
-
-var hasRequiredRe;
-
-function requireRe () {
-	if (hasRequiredRe) return re.exports;
-	hasRequiredRe = 1;
-	(function (module, exports) {
-
-		const {
-		  MAX_SAFE_COMPONENT_LENGTH,
-		  MAX_SAFE_BUILD_LENGTH,
-		  MAX_LENGTH,
-		} = requireConstants$8();
-		const debug = requireDebug$1();
-		exports = module.exports = {};
-
-		// The actual regexps go on exports.re
-		const re = exports.re = [];
-		const safeRe = exports.safeRe = [];
-		const src = exports.src = [];
-		const safeSrc = exports.safeSrc = [];
-		const t = exports.t = {};
-		let R = 0;
-
-		const LETTERDASHNUMBER = '[a-zA-Z0-9-]';
-
-		// Replace some greedy regex tokens to prevent regex dos issues. These regex are
-		// used internally via the safeRe object since all inputs in this library get
-		// normalized first to trim and collapse all extra whitespace. The original
-		// regexes are exported for userland consumption and lower level usage. A
-		// future breaking change could export the safer regex only with a note that
-		// all input should have extra whitespace removed.
-		const safeRegexReplacements = [
-		  ['\\s', 1],
-		  ['\\d', MAX_LENGTH],
-		  [LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH],
-		];
-
-		const makeSafeRegex = (value) => {
-		  for (const [token, max] of safeRegexReplacements) {
-		    value = value
-		      .split(`${token}*`).join(`${token}{0,${max}}`)
-		      .split(`${token}+`).join(`${token}{1,${max}}`);
-		  }
-		  return value
-		};
-
-		const createToken = (name, value, isGlobal) => {
-		  const safe = makeSafeRegex(value);
-		  const index = R++;
-		  debug(name, index, value);
-		  t[name] = index;
-		  src[index] = value;
-		  safeSrc[index] = safe;
-		  re[index] = new RegExp(value, isGlobal ? 'g' : undefined);
-		  safeRe[index] = new RegExp(safe, isGlobal ? 'g' : undefined);
-		};
-
-		// The following Regular Expressions can be used for tokenizing,
-		// validating, and parsing SemVer version strings.
-
-		// ## Numeric Identifier
-		// A single `0`, or a non-zero digit followed by zero or more digits.
-
-		createToken('NUMERICIDENTIFIER', '0|[1-9]\\d*');
-		createToken('NUMERICIDENTIFIERLOOSE', '\\d+');
-
-		// ## Non-numeric Identifier
-		// Zero or more digits, followed by a letter or hyphen, and then zero or
-		// more letters, digits, or hyphens.
-
-		createToken('NONNUMERICIDENTIFIER', `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
-
-		// ## Main Version
-		// Three dot-separated numeric identifiers.
-
-		createToken('MAINVERSION', `(${src[t.NUMERICIDENTIFIER]})\\.` +
-		                   `(${src[t.NUMERICIDENTIFIER]})\\.` +
-		                   `(${src[t.NUMERICIDENTIFIER]})`);
-
-		createToken('MAINVERSIONLOOSE', `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
-		                        `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
-		                        `(${src[t.NUMERICIDENTIFIERLOOSE]})`);
-
-		// ## Pre-release Version Identifier
-		// A numeric identifier, or a non-numeric identifier.
-		// Non-numeric identifiers include numeric identifiers but can be longer.
-		// Therefore non-numeric identifiers must go first.
-
-		createToken('PRERELEASEIDENTIFIER', `(?:${src[t.NONNUMERICIDENTIFIER]
-		}|${src[t.NUMERICIDENTIFIER]})`);
-
-		createToken('PRERELEASEIDENTIFIERLOOSE', `(?:${src[t.NONNUMERICIDENTIFIER]
-		}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
-
-		// ## Pre-release Version
-		// Hyphen, followed by one or more dot-separated pre-release version
-		// identifiers.
-
-		createToken('PRERELEASE', `(?:-(${src[t.PRERELEASEIDENTIFIER]
-		}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
-
-		createToken('PRERELEASELOOSE', `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]
-		}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
-
-		// ## Build Metadata Identifier
-		// Any combination of digits, letters, or hyphens.
-
-		createToken('BUILDIDENTIFIER', `${LETTERDASHNUMBER}+`);
-
-		// ## Build Metadata
-		// Plus sign, followed by one or more period-separated build metadata
-		// identifiers.
-
-		createToken('BUILD', `(?:\\+(${src[t.BUILDIDENTIFIER]
-		}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
-
-		// ## Full Version String
-		// A main version, followed optionally by a pre-release version and
-		// build metadata.
-
-		// Note that the only major, minor, patch, and pre-release sections of
-		// the version string are capturing groups.  The build metadata is not a
-		// capturing group, because it should not ever be used in version
-		// comparison.
-
-		createToken('FULLPLAIN', `v?${src[t.MAINVERSION]
-		}${src[t.PRERELEASE]}?${
-		  src[t.BUILD]}?`);
-
-		createToken('FULL', `^${src[t.FULLPLAIN]}$`);
-
-		// like full, but allows v1.2.3 and =1.2.3, which people do sometimes.
-		// also, 1.0.0alpha1 (prerelease without the hyphen) which is pretty
-		// common in the npm registry.
-		createToken('LOOSEPLAIN', `[v=\\s]*${src[t.MAINVERSIONLOOSE]
-		}${src[t.PRERELEASELOOSE]}?${
-		  src[t.BUILD]}?`);
-
-		createToken('LOOSE', `^${src[t.LOOSEPLAIN]}$`);
-
-		createToken('GTLT', '((?:<|>)?=?)');
-
-		// Something like "2.*" or "1.2.x".
-		// Note that "x.x" is a valid xRange identifier, meaning "any version"
-		// Only the first item is strictly required.
-		createToken('XRANGEIDENTIFIERLOOSE', `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
-		createToken('XRANGEIDENTIFIER', `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
-
-		createToken('XRANGEPLAIN', `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})` +
-		                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
-		                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
-		                   `(?:${src[t.PRERELEASE]})?${
-		                     src[t.BUILD]}?` +
-		                   `)?)?`);
-
-		createToken('XRANGEPLAINLOOSE', `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})` +
-		                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
-		                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
-		                        `(?:${src[t.PRERELEASELOOSE]})?${
-		                          src[t.BUILD]}?` +
-		                        `)?)?`);
-
-		createToken('XRANGE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
-		createToken('XRANGELOOSE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
-
-		// Coercion.
-		// Extract anything that could conceivably be a part of a valid semver
-		createToken('COERCEPLAIN', `${'(^|[^\\d])' +
-		              '(\\d{1,'}${MAX_SAFE_COMPONENT_LENGTH}})` +
-		              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
-		              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
-		createToken('COERCE', `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
-		createToken('COERCEFULL', src[t.COERCEPLAIN] +
-		              `(?:${src[t.PRERELEASE]})?` +
-		              `(?:${src[t.BUILD]})?` +
-		              `(?:$|[^\\d])`);
-		createToken('COERCERTL', src[t.COERCE], true);
-		createToken('COERCERTLFULL', src[t.COERCEFULL], true);
-
-		// Tilde ranges.
-		// Meaning is "reasonably at or greater than"
-		createToken('LONETILDE', '(?:~>?)');
-
-		createToken('TILDETRIM', `(\\s*)${src[t.LONETILDE]}\\s+`, true);
-		exports.tildeTrimReplace = '$1~';
-
-		createToken('TILDE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
-		createToken('TILDELOOSE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
-
-		// Caret ranges.
-		// Meaning is "at least and backwards compatible with"
-		createToken('LONECARET', '(?:\\^)');
-
-		createToken('CARETTRIM', `(\\s*)${src[t.LONECARET]}\\s+`, true);
-		exports.caretTrimReplace = '$1^';
-
-		createToken('CARET', `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
-		createToken('CARETLOOSE', `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
-
-		// A simple gt/lt/eq thing, or just "" to indicate "any version"
-		createToken('COMPARATORLOOSE', `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
-		createToken('COMPARATOR', `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
-
-		// An expression to strip any whitespace between the gtlt and the thing
-		// it modifies, so that `> 1.2.3` ==> `>1.2.3`
-		createToken('COMPARATORTRIM', `(\\s*)${src[t.GTLT]
-		}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
-		exports.comparatorTrimReplace = '$1$2$3';
-
-		// Something like `1.2.3 - 1.2.4`
-		// Note that these all use the loose form, because they'll be
-		// checked against either the strict or loose comparator form
-		// later.
-		createToken('HYPHENRANGE', `^\\s*(${src[t.XRANGEPLAIN]})` +
-		                   `\\s+-\\s+` +
-		                   `(${src[t.XRANGEPLAIN]})` +
-		                   `\\s*$`);
-
-		createToken('HYPHENRANGELOOSE', `^\\s*(${src[t.XRANGEPLAINLOOSE]})` +
-		                        `\\s+-\\s+` +
-		                        `(${src[t.XRANGEPLAINLOOSE]})` +
-		                        `\\s*$`);
-
-		// Star ranges basically just allow anything at all.
-		createToken('STAR', '(<|>)?=?\\s*\\*');
-		// >=0.0.0 is like a star
-		createToken('GTE0', '^\\s*>=\\s*0\\.0\\.0\\s*$');
-		createToken('GTE0PRE', '^\\s*>=\\s*0\\.0\\.0-0\\s*$'); 
-	} (re, re.exports));
-	return re.exports;
-}
-
-var parseOptions_1;
-var hasRequiredParseOptions;
-
-function requireParseOptions () {
-	if (hasRequiredParseOptions) return parseOptions_1;
-	hasRequiredParseOptions = 1;
-
-	// parse out just the options we care about
-	const looseOption = Object.freeze({ loose: true });
-	const emptyOpts = Object.freeze({ });
-	const parseOptions = options => {
-	  if (!options) {
-	    return emptyOpts
-	  }
-
-	  if (typeof options !== 'object') {
-	    return looseOption
-	  }
-
-	  return options
-	};
-	parseOptions_1 = parseOptions;
-	return parseOptions_1;
-}
-
-var identifiers;
-var hasRequiredIdentifiers;
-
-function requireIdentifiers () {
-	if (hasRequiredIdentifiers) return identifiers;
-	hasRequiredIdentifiers = 1;
-
-	const numeric = /^[0-9]+$/;
-	const compareIdentifiers = (a, b) => {
-	  if (typeof a === 'number' && typeof b === 'number') {
-	    return a === b ? 0 : a < b ? -1 : 1
-	  }
-
-	  const anum = numeric.test(a);
-	  const bnum = numeric.test(b);
-
-	  if (anum && bnum) {
-	    a = +a;
-	    b = +b;
-	  }
-
-	  return a === b ? 0
-	    : (anum && !bnum) ? -1
-	    : (bnum && !anum) ? 1
-	    : a < b ? -1
-	    : 1
-	};
-
-	const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a);
-
-	identifiers = {
-	  compareIdentifiers,
-	  rcompareIdentifiers,
-	};
-	return identifiers;
-}
-
-var semver$3;
-var hasRequiredSemver$3;
-
-function requireSemver$3 () {
-	if (hasRequiredSemver$3) return semver$3;
-	hasRequiredSemver$3 = 1;
-
-	const debug = requireDebug$1();
-	const { MAX_LENGTH, MAX_SAFE_INTEGER } = requireConstants$8();
-	const { safeRe: re, t } = requireRe();
-
-	const parseOptions = requireParseOptions();
-	const { compareIdentifiers } = requireIdentifiers();
-
-	const isPrereleaseIdentifier = (prerelease, identifier) => {
-	  const identifiers = identifier.split('.');
-	  if (identifiers.length > prerelease.length) {
-	    return false
-	  }
-
-	  for (let i = 0; i < identifiers.length; i++) {
-	    if (compareIdentifiers(prerelease[i], identifiers[i]) !== 0) {
-	      return false
-	    }
-	  }
-
-	  return true
-	};
-
-	class SemVer {
-	  constructor (version, options) {
-	    options = parseOptions(options);
-
-	    if (version instanceof SemVer) {
-	      if (version.loose === !!options.loose &&
-	        version.includePrerelease === !!options.includePrerelease) {
-	        return version
-	      } else {
-	        version = version.version;
-	      }
-	    } else if (typeof version !== 'string') {
-	      throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`)
-	    }
-
-	    if (version.length > MAX_LENGTH) {
-	      throw new TypeError(
-	        `version is longer than ${MAX_LENGTH} characters`
-	      )
-	    }
-
-	    debug('SemVer', version, options);
-	    this.options = options;
-	    this.loose = !!options.loose;
-	    // this isn't actually relevant for versions, but keep it so that we
-	    // don't run into trouble passing this.options around.
-	    this.includePrerelease = !!options.includePrerelease;
-
-	    const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
-
-	    if (!m) {
-	      throw new TypeError(`Invalid Version: ${version}`)
-	    }
-
-	    this.raw = version;
-
-	    // these are actually numbers
-	    this.major = +m[1];
-	    this.minor = +m[2];
-	    this.patch = +m[3];
-
-	    if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
-	      throw new TypeError('Invalid major version')
-	    }
-
-	    if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
-	      throw new TypeError('Invalid minor version')
-	    }
-
-	    if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
-	      throw new TypeError('Invalid patch version')
-	    }
-
-	    // numberify any prerelease numeric ids
-	    if (!m[4]) {
-	      this.prerelease = [];
-	    } else {
-	      this.prerelease = m[4].split('.').map((id) => {
-	        if (/^[0-9]+$/.test(id)) {
-	          const num = +id;
-	          if (num >= 0 && num < MAX_SAFE_INTEGER) {
-	            return num
-	          }
-	        }
-	        return id
-	      });
-	    }
-
-	    this.build = m[5] ? m[5].split('.') : [];
-	    this.format();
-	  }
-
-	  format () {
-	    this.version = `${this.major}.${this.minor}.${this.patch}`;
-	    if (this.prerelease.length) {
-	      this.version += `-${this.prerelease.join('.')}`;
-	    }
-	    return this.version
-	  }
-
-	  toString () {
-	    return this.version
-	  }
-
-	  compare (other) {
-	    debug('SemVer.compare', this.version, this.options, other);
-	    if (!(other instanceof SemVer)) {
-	      if (typeof other === 'string' && other === this.version) {
-	        return 0
-	      }
-	      other = new SemVer(other, this.options);
-	    }
-
-	    if (other.version === this.version) {
-	      return 0
-	    }
-
-	    return this.compareMain(other) || this.comparePre(other)
-	  }
-
-	  compareMain (other) {
-	    if (!(other instanceof SemVer)) {
-	      other = new SemVer(other, this.options);
-	    }
-
-	    if (this.major < other.major) {
-	      return -1
-	    }
-	    if (this.major > other.major) {
-	      return 1
-	    }
-	    if (this.minor < other.minor) {
-	      return -1
-	    }
-	    if (this.minor > other.minor) {
-	      return 1
-	    }
-	    if (this.patch < other.patch) {
-	      return -1
-	    }
-	    if (this.patch > other.patch) {
-	      return 1
-	    }
-	    return 0
-	  }
-
-	  comparePre (other) {
-	    if (!(other instanceof SemVer)) {
-	      other = new SemVer(other, this.options);
-	    }
-
-	    // NOT having a prerelease is > having one
-	    if (this.prerelease.length && !other.prerelease.length) {
-	      return -1
-	    } else if (!this.prerelease.length && other.prerelease.length) {
-	      return 1
-	    } else if (!this.prerelease.length && !other.prerelease.length) {
-	      return 0
-	    }
-
-	    let i = 0;
-	    do {
-	      const a = this.prerelease[i];
-	      const b = other.prerelease[i];
-	      debug('prerelease compare', i, a, b);
-	      if (a === undefined && b === undefined) {
-	        return 0
-	      } else if (b === undefined) {
-	        return 1
-	      } else if (a === undefined) {
-	        return -1
-	      } else if (a === b) {
-	        continue
-	      } else {
-	        return compareIdentifiers(a, b)
-	      }
-	    } while (++i)
-	  }
-
-	  compareBuild (other) {
-	    if (!(other instanceof SemVer)) {
-	      other = new SemVer(other, this.options);
-	    }
-
-	    let i = 0;
-	    do {
-	      const a = this.build[i];
-	      const b = other.build[i];
-	      debug('build compare', i, a, b);
-	      if (a === undefined && b === undefined) {
-	        return 0
-	      } else if (b === undefined) {
-	        return 1
-	      } else if (a === undefined) {
-	        return -1
-	      } else if (a === b) {
-	        continue
-	      } else {
-	        return compareIdentifiers(a, b)
-	      }
-	    } while (++i)
-	  }
-
-	  // preminor will bump the version up to the next minor release, and immediately
-	  // down to pre-release. premajor and prepatch work the same way.
-	  inc (release, identifier, identifierBase) {
-	    if (release.startsWith('pre')) {
-	      if (!identifier && identifierBase === false) {
-	        throw new Error('invalid increment argument: identifier is empty')
-	      }
-	      // Avoid an invalid semver results
-	      if (identifier) {
-	        const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
-	        if (!match || match[1] !== identifier) {
-	          throw new Error(`invalid identifier: ${identifier}`)
-	        }
-	      }
-	    }
-
-	    switch (release) {
-	      case 'premajor':
-	        this.prerelease.length = 0;
-	        this.patch = 0;
-	        this.minor = 0;
-	        this.major++;
-	        this.inc('pre', identifier, identifierBase);
-	        break
-	      case 'preminor':
-	        this.prerelease.length = 0;
-	        this.patch = 0;
-	        this.minor++;
-	        this.inc('pre', identifier, identifierBase);
-	        break
-	      case 'prepatch':
-	        // If this is already a prerelease, it will bump to the next version
-	        // drop any prereleases that might already exist, since they are not
-	        // relevant at this point.
-	        this.prerelease.length = 0;
-	        this.inc('patch', identifier, identifierBase);
-	        this.inc('pre', identifier, identifierBase);
-	        break
-	      // If the input is a non-prerelease version, this acts the same as
-	      // prepatch.
-	      case 'prerelease':
-	        if (this.prerelease.length === 0) {
-	          this.inc('patch', identifier, identifierBase);
-	        }
-	        this.inc('pre', identifier, identifierBase);
-	        break
-	      case 'release':
-	        if (this.prerelease.length === 0) {
-	          throw new Error(`version ${this.raw} is not a prerelease`)
-	        }
-	        this.prerelease.length = 0;
-	        break
-
-	      case 'major':
-	        // If this is a pre-major version, bump up to the same major version.
-	        // Otherwise increment major.
-	        // 1.0.0-5 bumps to 1.0.0
-	        // 1.1.0 bumps to 2.0.0
-	        if (
-	          this.minor !== 0 ||
-	          this.patch !== 0 ||
-	          this.prerelease.length === 0
-	        ) {
-	          this.major++;
-	        }
-	        this.minor = 0;
-	        this.patch = 0;
-	        this.prerelease = [];
-	        break
-	      case 'minor':
-	        // If this is a pre-minor version, bump up to the same minor version.
-	        // Otherwise increment minor.
-	        // 1.2.0-5 bumps to 1.2.0
-	        // 1.2.1 bumps to 1.3.0
-	        if (this.patch !== 0 || this.prerelease.length === 0) {
-	          this.minor++;
-	        }
-	        this.patch = 0;
-	        this.prerelease = [];
-	        break
-	      case 'patch':
-	        // If this is not a pre-release version, it will increment the patch.
-	        // If it is a pre-release it will bump up to the same patch version.
-	        // 1.2.0-5 patches to 1.2.0
-	        // 1.2.0 patches to 1.2.1
-	        if (this.prerelease.length === 0) {
-	          this.patch++;
-	        }
-	        this.prerelease = [];
-	        break
-	      // This probably shouldn't be used publicly.
-	      // 1.0.0 'pre' would become 1.0.0-0 which is the wrong direction.
-	      case 'pre': {
-	        const base = Number(identifierBase) ? 1 : 0;
-
-	        if (this.prerelease.length === 0) {
-	          this.prerelease = [base];
-	        } else {
-	          let i = this.prerelease.length;
-	          while (--i >= 0) {
-	            if (typeof this.prerelease[i] === 'number') {
-	              this.prerelease[i]++;
-	              i = -2;
-	            }
-	          }
-	          if (i === -1) {
-	            // didn't increment anything
-	            if (identifier === this.prerelease.join('.') && identifierBase === false) {
-	              throw new Error('invalid increment argument: identifier already exists')
-	            }
-	            this.prerelease.push(base);
-	          }
-	        }
-	        if (identifier) {
-	          // 1.2.0-beta.1 bumps to 1.2.0-beta.2,
-	          // 1.2.0-beta.fooblz or 1.2.0-beta bumps to 1.2.0-beta.0
-	          let prerelease = [identifier, base];
-	          if (identifierBase === false) {
-	            prerelease = [identifier];
-	          }
-	          if (isPrereleaseIdentifier(this.prerelease, identifier)) {
-	            const prereleaseBase = this.prerelease[identifier.split('.').length];
-	            if (isNaN(prereleaseBase)) {
-	              this.prerelease = prerelease;
-	            }
-	          } else {
-	            this.prerelease = prerelease;
-	          }
-	        }
-	        break
-	      }
-	      default:
-	        throw new Error(`invalid increment argument: ${release}`)
-	    }
-	    this.raw = this.format();
-	    if (this.build.length) {
-	      this.raw += `+${this.build.join('.')}`;
-	    }
-	    return this
-	  }
-	}
-
-	semver$3 = SemVer;
-	return semver$3;
-}
-
-var parse_1;
-var hasRequiredParse;
-
-function requireParse () {
-	if (hasRequiredParse) return parse_1;
-	hasRequiredParse = 1;
-
-	const SemVer = requireSemver$3();
-	const parse = (version, options, throwErrors = false) => {
-	  if (version instanceof SemVer) {
-	    return version
-	  }
-	  try {
-	    return new SemVer(version, options)
-	  } catch (er) {
-	    if (!throwErrors) {
-	      return null
-	    }
-	    throw er
-	  }
-	};
-
-	parse_1 = parse;
-	return parse_1;
-}
-
-var valid_1;
-var hasRequiredValid$1;
-
-function requireValid$1 () {
-	if (hasRequiredValid$1) return valid_1;
-	hasRequiredValid$1 = 1;
-
-	const parse = requireParse();
-	const valid = (version, options) => {
-	  const v = parse(version, options);
-	  return v ? v.version : null
-	};
-	valid_1 = valid;
-	return valid_1;
-}
-
-var clean_1;
-var hasRequiredClean;
-
-function requireClean () {
-	if (hasRequiredClean) return clean_1;
-	hasRequiredClean = 1;
-
-	const parse = requireParse();
-	const clean = (version, options) => {
-	  const s = parse(version.trim().replace(/^[=v]+/, ''), options);
-	  return s ? s.version : null
-	};
-	clean_1 = clean;
-	return clean_1;
-}
-
-var inc_1;
-var hasRequiredInc;
-
-function requireInc () {
-	if (hasRequiredInc) return inc_1;
-	hasRequiredInc = 1;
-
-	const SemVer = requireSemver$3();
-
-	const inc = (version, release, options, identifier, identifierBase) => {
-	  if (typeof (options) === 'string') {
-	    identifierBase = identifier;
-	    identifier = options;
-	    options = undefined;
-	  }
-
-	  try {
-	    return new SemVer(
-	      version instanceof SemVer ? version.version : version,
-	      options
-	    ).inc(release, identifier, identifierBase).version
-	  } catch (er) {
-	    return null
-	  }
-	};
-	inc_1 = inc;
-	return inc_1;
-}
-
-var diff_1;
-var hasRequiredDiff;
-
-function requireDiff () {
-	if (hasRequiredDiff) return diff_1;
-	hasRequiredDiff = 1;
-
-	const parse = requireParse();
-
-	const diff = (version1, version2) => {
-	  const v1 = parse(version1, null, true);
-	  const v2 = parse(version2, null, true);
-	  const comparison = v1.compare(v2);
-
-	  if (comparison === 0) {
-	    return null
-	  }
-
-	  const v1Higher = comparison > 0;
-	  const highVersion = v1Higher ? v1 : v2;
-	  const lowVersion = v1Higher ? v2 : v1;
-	  const highHasPre = !!highVersion.prerelease.length;
-	  const lowHasPre = !!lowVersion.prerelease.length;
-
-	  if (lowHasPre && !highHasPre) {
-	    // Going from prerelease -> no prerelease requires some special casing
-
-	    // If the low version has only a major, then it will always be a major
-	    // Some examples:
-	    // 1.0.0-1 -> 1.0.0
-	    // 1.0.0-1 -> 1.1.1
-	    // 1.0.0-1 -> 2.0.0
-	    if (!lowVersion.patch && !lowVersion.minor) {
-	      return 'major'
-	    }
-
-	    // If the main part has no difference
-	    if (lowVersion.compareMain(highVersion) === 0) {
-	      if (lowVersion.minor && !lowVersion.patch) {
-	        return 'minor'
-	      }
-	      return 'patch'
-	    }
-	  }
-
-	  // add the `pre` prefix if we are going to a prerelease version
-	  const prefix = highHasPre ? 'pre' : '';
-
-	  if (v1.major !== v2.major) {
-	    return prefix + 'major'
-	  }
-
-	  if (v1.minor !== v2.minor) {
-	    return prefix + 'minor'
-	  }
-
-	  if (v1.patch !== v2.patch) {
-	    return prefix + 'patch'
-	  }
-
-	  // high and low are prereleases
-	  return 'prerelease'
-	};
-
-	diff_1 = diff;
-	return diff_1;
-}
-
-var major_1;
-var hasRequiredMajor;
-
-function requireMajor () {
-	if (hasRequiredMajor) return major_1;
-	hasRequiredMajor = 1;
-
-	const SemVer = requireSemver$3();
-	const major = (a, loose) => new SemVer(a, loose).major;
-	major_1 = major;
-	return major_1;
-}
-
-var minor_1;
-var hasRequiredMinor;
-
-function requireMinor () {
-	if (hasRequiredMinor) return minor_1;
-	hasRequiredMinor = 1;
-
-	const SemVer = requireSemver$3();
-	const minor = (a, loose) => new SemVer(a, loose).minor;
-	minor_1 = minor;
-	return minor_1;
-}
-
-var patch_1;
-var hasRequiredPatch;
-
-function requirePatch () {
-	if (hasRequiredPatch) return patch_1;
-	hasRequiredPatch = 1;
-
-	const SemVer = requireSemver$3();
-	const patch = (a, loose) => new SemVer(a, loose).patch;
-	patch_1 = patch;
-	return patch_1;
-}
-
-var prerelease_1;
-var hasRequiredPrerelease;
-
-function requirePrerelease () {
-	if (hasRequiredPrerelease) return prerelease_1;
-	hasRequiredPrerelease = 1;
-
-	const parse = requireParse();
-	const prerelease = (version, options) => {
-	  const parsed = parse(version, options);
-	  return (parsed && parsed.prerelease.length) ? parsed.prerelease : null
-	};
-	prerelease_1 = prerelease;
-	return prerelease_1;
-}
-
-var compare_1;
-var hasRequiredCompare;
-
-function requireCompare () {
-	if (hasRequiredCompare) return compare_1;
-	hasRequiredCompare = 1;
-
-	const SemVer = requireSemver$3();
-	const compare = (a, b, loose) =>
-	  new SemVer(a, loose).compare(new SemVer(b, loose));
-
-	compare_1 = compare;
-	return compare_1;
-}
-
-var rcompare_1;
-var hasRequiredRcompare;
-
-function requireRcompare () {
-	if (hasRequiredRcompare) return rcompare_1;
-	hasRequiredRcompare = 1;
-
-	const compare = requireCompare();
-	const rcompare = (a, b, loose) => compare(b, a, loose);
-	rcompare_1 = rcompare;
-	return rcompare_1;
-}
-
-var compareLoose_1;
-var hasRequiredCompareLoose;
-
-function requireCompareLoose () {
-	if (hasRequiredCompareLoose) return compareLoose_1;
-	hasRequiredCompareLoose = 1;
-
-	const compare = requireCompare();
-	const compareLoose = (a, b) => compare(a, b, true);
-	compareLoose_1 = compareLoose;
-	return compareLoose_1;
-}
-
-var compareBuild_1;
-var hasRequiredCompareBuild;
-
-function requireCompareBuild () {
-	if (hasRequiredCompareBuild) return compareBuild_1;
-	hasRequiredCompareBuild = 1;
-
-	const SemVer = requireSemver$3();
-	const compareBuild = (a, b, loose) => {
-	  const versionA = new SemVer(a, loose);
-	  const versionB = new SemVer(b, loose);
-	  return versionA.compare(versionB) || versionA.compareBuild(versionB)
-	};
-	compareBuild_1 = compareBuild;
-	return compareBuild_1;
-}
-
-var sort_1;
-var hasRequiredSort;
-
-function requireSort () {
-	if (hasRequiredSort) return sort_1;
-	hasRequiredSort = 1;
-
-	const compareBuild = requireCompareBuild();
-	const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
-	sort_1 = sort;
-	return sort_1;
-}
-
-var rsort_1;
-var hasRequiredRsort;
-
-function requireRsort () {
-	if (hasRequiredRsort) return rsort_1;
-	hasRequiredRsort = 1;
-
-	const compareBuild = requireCompareBuild();
-	const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
-	rsort_1 = rsort;
-	return rsort_1;
-}
-
-var gt_1;
-var hasRequiredGt;
-
-function requireGt () {
-	if (hasRequiredGt) return gt_1;
-	hasRequiredGt = 1;
-
-	const compare = requireCompare();
-	const gt = (a, b, loose) => compare(a, b, loose) > 0;
-	gt_1 = gt;
-	return gt_1;
-}
-
-var lt_1;
-var hasRequiredLt;
-
-function requireLt () {
-	if (hasRequiredLt) return lt_1;
-	hasRequiredLt = 1;
-
-	const compare = requireCompare();
-	const lt = (a, b, loose) => compare(a, b, loose) < 0;
-	lt_1 = lt;
-	return lt_1;
-}
-
-var eq_1$1;
-var hasRequiredEq$1;
-
-function requireEq$1 () {
-	if (hasRequiredEq$1) return eq_1$1;
-	hasRequiredEq$1 = 1;
-
-	const compare = requireCompare();
-	const eq = (a, b, loose) => compare(a, b, loose) === 0;
-	eq_1$1 = eq;
-	return eq_1$1;
-}
-
-var neq_1;
-var hasRequiredNeq;
-
-function requireNeq () {
-	if (hasRequiredNeq) return neq_1;
-	hasRequiredNeq = 1;
-
-	const compare = requireCompare();
-	const neq = (a, b, loose) => compare(a, b, loose) !== 0;
-	neq_1 = neq;
-	return neq_1;
-}
-
-var gte_1;
-var hasRequiredGte;
-
-function requireGte () {
-	if (hasRequiredGte) return gte_1;
-	hasRequiredGte = 1;
-
-	const compare = requireCompare();
-	const gte = (a, b, loose) => compare(a, b, loose) >= 0;
-	gte_1 = gte;
-	return gte_1;
-}
-
-var lte_1;
-var hasRequiredLte;
-
-function requireLte () {
-	if (hasRequiredLte) return lte_1;
-	hasRequiredLte = 1;
-
-	const compare = requireCompare();
-	const lte = (a, b, loose) => compare(a, b, loose) <= 0;
-	lte_1 = lte;
-	return lte_1;
-}
-
-var cmp_1;
-var hasRequiredCmp;
-
-function requireCmp () {
-	if (hasRequiredCmp) return cmp_1;
-	hasRequiredCmp = 1;
-
-	const eq = requireEq$1();
-	const neq = requireNeq();
-	const gt = requireGt();
-	const gte = requireGte();
-	const lt = requireLt();
-	const lte = requireLte();
-
-	const cmp = (a, op, b, loose) => {
-	  switch (op) {
-	    case '===':
-	      if (typeof a === 'object') {
-	        a = a.version;
-	      }
-	      if (typeof b === 'object') {
-	        b = b.version;
-	      }
-	      return a === b
-
-	    case '!==':
-	      if (typeof a === 'object') {
-	        a = a.version;
-	      }
-	      if (typeof b === 'object') {
-	        b = b.version;
-	      }
-	      return a !== b
-
-	    case '':
-	    case '=':
-	    case '==':
-	      return eq(a, b, loose)
-
-	    case '!=':
-	      return neq(a, b, loose)
-
-	    case '>':
-	      return gt(a, b, loose)
-
-	    case '>=':
-	      return gte(a, b, loose)
-
-	    case '<':
-	      return lt(a, b, loose)
-
-	    case '<=':
-	      return lte(a, b, loose)
-
-	    default:
-	      throw new TypeError(`Invalid operator: ${op}`)
-	  }
-	};
-	cmp_1 = cmp;
-	return cmp_1;
-}
-
-var coerce_1;
-var hasRequiredCoerce;
-
-function requireCoerce () {
-	if (hasRequiredCoerce) return coerce_1;
-	hasRequiredCoerce = 1;
-
-	const SemVer = requireSemver$3();
-	const parse = requireParse();
-	const { safeRe: re, t } = requireRe();
-
-	const coerce = (version, options) => {
-	  if (version instanceof SemVer) {
-	    return version
-	  }
-
-	  if (typeof version === 'number') {
-	    version = String(version);
-	  }
-
-	  if (typeof version !== 'string') {
-	    return null
-	  }
-
-	  options = options || {};
-
-	  let match = null;
-	  if (!options.rtl) {
-	    match = version.match(options.includePrerelease ? re[t.COERCEFULL] : re[t.COERCE]);
-	  } else {
-	    // Find the right-most coercible string that does not share
-	    // a terminus with a more left-ward coercible string.
-	    // Eg, '1.2.3.4' wants to coerce '2.3.4', not '3.4' or '4'
-	    // With includePrerelease option set, '1.2.3.4-rc' wants to coerce '2.3.4-rc', not '2.3.4'
-	    //
-	    // Walk through the string checking with a /g regexp
-	    // Manually set the index so as to pick up overlapping matches.
-	    // Stop when we get a match that ends at the string end, since no
-	    // coercible string can be more right-ward without the same terminus.
-	    const coerceRtlRegex = options.includePrerelease ? re[t.COERCERTLFULL] : re[t.COERCERTL];
-	    let next;
-	    while ((next = coerceRtlRegex.exec(version)) &&
-	        (!match || match.index + match[0].length !== version.length)
-	    ) {
-	      if (!match ||
-	            next.index + next[0].length !== match.index + match[0].length) {
-	        match = next;
-	      }
-	      coerceRtlRegex.lastIndex = next.index + next[1].length + next[2].length;
-	    }
-	    // leave it in a clean state
-	    coerceRtlRegex.lastIndex = -1;
-	  }
-
-	  if (match === null) {
-	    return null
-	  }
-
-	  const major = match[2];
-	  const minor = match[3] || '0';
-	  const patch = match[4] || '0';
-	  const prerelease = options.includePrerelease && match[5] ? `-${match[5]}` : '';
-	  const build = options.includePrerelease && match[6] ? `+${match[6]}` : '';
-
-	  return parse(`${major}.${minor}.${patch}${prerelease}${build}`, options)
-	};
-	coerce_1 = coerce;
-	return coerce_1;
-}
-
-var truncate_1;
-var hasRequiredTruncate;
-
-function requireTruncate () {
-	if (hasRequiredTruncate) return truncate_1;
-	hasRequiredTruncate = 1;
-
-	const parse = requireParse();
-	const constants = requireConstants$8();
-	const SemVer = requireSemver$3();
-
-	const truncate = (version, truncation, options) => {
-	  if (!constants.RELEASE_TYPES.includes(truncation)) {
-	    return null
-	  }
-
-	  const clonedVersion = cloneInputVersion(version, options);
-	  return clonedVersion && doTruncation(clonedVersion, truncation)
-	};
-
-	const cloneInputVersion = (version, options) => {
-	  const versionStringToParse = (
-	    version instanceof SemVer ? version.version : version
-	  );
-
-	  return parse(versionStringToParse, options)
-	};
-
-	const doTruncation = (version, truncation) => {
-	  if (isPrerelease(truncation)) {
-	    return version.version
-	  }
-
-	  version.prerelease = [];
-
-	  switch (truncation) {
-	    case 'major':
-	      version.minor = 0;
-	      version.patch = 0;
-	      break
-	    case 'minor':
-	      version.patch = 0;
-	      break
-	  }
-
-	  return version.format()
-	};
-
-	const isPrerelease = (type) => {
-	  return type.startsWith('pre')
-	};
-
-	truncate_1 = truncate;
-	return truncate_1;
-}
-
-var lrucache;
-var hasRequiredLrucache;
-
-function requireLrucache () {
-	if (hasRequiredLrucache) return lrucache;
-	hasRequiredLrucache = 1;
-
-	class LRUCache {
-	  constructor () {
-	    this.max = 1000;
-	    this.map = new Map();
-	  }
-
-	  get (key) {
-	    const value = this.map.get(key);
-	    if (value === undefined) {
-	      return undefined
-	    } else {
-	      // Remove the key from the map and add it to the end
-	      this.map.delete(key);
-	      this.map.set(key, value);
-	      return value
-	    }
-	  }
-
-	  delete (key) {
-	    return this.map.delete(key)
-	  }
-
-	  set (key, value) {
-	    const deleted = this.delete(key);
-
-	    if (!deleted && value !== undefined) {
-	      // If cache is full, delete the least recently used item
-	      if (this.map.size >= this.max) {
-	        const firstKey = this.map.keys().next().value;
-	        this.delete(firstKey);
-	      }
-
-	      this.map.set(key, value);
-	    }
-
-	    return this
-	  }
-	}
-
-	lrucache = LRUCache;
-	return lrucache;
-}
-
-var range$1;
-var hasRequiredRange$1;
-
-function requireRange$1 () {
-	if (hasRequiredRange$1) return range$1;
-	hasRequiredRange$1 = 1;
-
-	const SPACE_CHARACTERS = /\s+/g;
-
-	// hoisted class for cyclic dependency
-	class Range {
-	  constructor (range, options) {
-	    options = parseOptions(options);
-
-	    if (range instanceof Range) {
-	      if (
-	        range.loose === !!options.loose &&
-	        range.includePrerelease === !!options.includePrerelease
-	      ) {
-	        return range
-	      } else {
-	        return new Range(range.raw, options)
-	      }
-	    }
-
-	    if (range instanceof Comparator) {
-	      // just put it in the set and return
-	      this.raw = range.value;
-	      this.set = [[range]];
-	      this.formatted = undefined;
-	      return this
-	    }
-
-	    this.options = options;
-	    this.loose = !!options.loose;
-	    this.includePrerelease = !!options.includePrerelease;
-
-	    // First reduce all whitespace as much as possible so we do not have to rely
-	    // on potentially slow regexes like \s*. This is then stored and used for
-	    // future error messages as well.
-	    this.raw = range.trim().replace(SPACE_CHARACTERS, ' ');
-
-	    // First, split on ||
-	    this.set = this.raw
-	      .split('||')
-	      // map the range to a 2d array of comparators
-	      .map(r => this.parseRange(r.trim()))
-	      // throw out any comparator lists that are empty
-	      // this generally means that it was not a valid range, which is allowed
-	      // in loose mode, but will still throw if the WHOLE range is invalid.
-	      .filter(c => c.length);
-
-	    if (!this.set.length) {
-	      throw new TypeError(`Invalid SemVer Range: ${this.raw}`)
-	    }
-
-	    // if we have any that are not the null set, throw out null sets.
-	    if (this.set.length > 1) {
-	      // keep the first one, in case they're all null sets
-	      const first = this.set[0];
-	      this.set = this.set.filter(c => !isNullSet(c[0]));
-	      if (this.set.length === 0) {
-	        this.set = [first];
-	      } else if (this.set.length > 1) {
-	        // if we have any that are *, then the range is just *
-	        for (const c of this.set) {
-	          if (c.length === 1 && isAny(c[0])) {
-	            this.set = [c];
-	            break
-	          }
-	        }
-	      }
-	    }
-
-	    this.formatted = undefined;
-	  }
-
-	  get range () {
-	    if (this.formatted === undefined) {
-	      this.formatted = '';
-	      for (let i = 0; i < this.set.length; i++) {
-	        if (i > 0) {
-	          this.formatted += '||';
-	        }
-	        const comps = this.set[i];
-	        for (let k = 0; k < comps.length; k++) {
-	          if (k > 0) {
-	            this.formatted += ' ';
-	          }
-	          this.formatted += comps[k].toString().trim();
-	        }
-	      }
-	    }
-	    return this.formatted
-	  }
-
-	  format () {
-	    return this.range
-	  }
-
-	  toString () {
-	    return this.range
-	  }
-
-	  parseRange (range) {
-	    // strip build metadata so it can't bleed into the version
-	    range = range.replace(BUILDSTRIPRE, '');
-
-	    // memoize range parsing for performance.
-	    // this is a very hot path, and fully deterministic.
-	    const memoOpts =
-	      (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) |
-	      (this.options.loose && FLAG_LOOSE);
-	    const memoKey = memoOpts + ':' + range;
-	    const cached = cache.get(memoKey);
-	    if (cached) {
-	      return cached
-	    }
-
-	    const loose = this.options.loose;
-	    // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
-	    const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
-	    range = range.replace(hr, hyphenReplace(this.options.includePrerelease));
-	    debug('hyphen replace', range);
-
-	    // `> 1.2.3 < 1.2.5` => `>1.2.3 <1.2.5`
-	    range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
-	    debug('comparator trim', range);
-
-	    // `~ 1.2.3` => `~1.2.3`
-	    range = range.replace(re[t.TILDETRIM], tildeTrimReplace);
-	    debug('tilde trim', range);
-
-	    // `^ 1.2.3` => `^1.2.3`
-	    range = range.replace(re[t.CARETTRIM], caretTrimReplace);
-	    debug('caret trim', range);
-
-	    // At this point, the range is completely trimmed and
-	    // ready to be split into comparators.
-
-	    let rangeList = range
-	      .split(' ')
-	      .map(comp => parseComparator(comp, this.options))
-	      .join(' ')
-	      .split(/\s+/)
-	      // >=0.0.0 is equivalent to *
-	      .map(comp => replaceGTE0(comp, this.options));
-
-	    if (loose) {
-	      // in loose mode, throw out any that are not valid comparators
-	      rangeList = rangeList.filter(comp => {
-	        debug('loose invalid filter', comp, this.options);
-	        return !!comp.match(re[t.COMPARATORLOOSE])
-	      });
-	    }
-	    debug('range list', rangeList);
-
-	    // if any comparators are the null set, then replace with JUST null set
-	    // if more than one comparator, remove any * comparators
-	    // also, don't include the same comparator more than once
-	    const rangeMap = new Map();
-	    const comparators = rangeList.map(comp => new Comparator(comp, this.options));
-	    for (const comp of comparators) {
-	      if (isNullSet(comp)) {
-	        return [comp]
-	      }
-	      rangeMap.set(comp.value, comp);
-	    }
-	    if (rangeMap.size > 1 && rangeMap.has('')) {
-	      rangeMap.delete('');
-	    }
-
-	    const result = [...rangeMap.values()];
-	    cache.set(memoKey, result);
-	    return result
-	  }
-
-	  intersects (range, options) {
-	    if (!(range instanceof Range)) {
-	      throw new TypeError('a Range is required')
-	    }
-
-	    return this.set.some((thisComparators) => {
-	      return (
-	        isSatisfiable(thisComparators, options) &&
-	        range.set.some((rangeComparators) => {
-	          return (
-	            isSatisfiable(rangeComparators, options) &&
-	            thisComparators.every((thisComparator) => {
-	              return rangeComparators.every((rangeComparator) => {
-	                return thisComparator.intersects(rangeComparator, options)
-	              })
-	            })
-	          )
-	        })
-	      )
-	    })
-	  }
-
-	  // if ANY of the sets match ALL of its comparators, then pass
-	  test (version) {
-	    if (!version) {
-	      return false
-	    }
-
-	    if (typeof version === 'string') {
-	      try {
-	        version = new SemVer(version, this.options);
-	      } catch (er) {
-	        return false
-	      }
-	    }
-
-	    for (let i = 0; i < this.set.length; i++) {
-	      if (testSet(this.set[i], version, this.options)) {
-	        return true
-	      }
-	    }
-	    return false
-	  }
-	}
-
-	range$1 = Range;
-
-	const LRU = requireLrucache();
-	const cache = new LRU();
-
-	const parseOptions = requireParseOptions();
-	const Comparator = requireComparator();
-	const debug = requireDebug$1();
-	const SemVer = requireSemver$3();
-	const {
-	  safeRe: re,
-	  src,
-	  t,
-	  comparatorTrimReplace,
-	  tildeTrimReplace,
-	  caretTrimReplace,
-	} = requireRe();
-	const { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = requireConstants$8();
-
-	// unbounded global build-metadata stripper used by parseRange
-	const BUILDSTRIPRE = new RegExp(src[t.BUILD], 'g');
-
-	const isNullSet = c => c.value === '<0.0.0-0';
-	const isAny = c => c.value === '';
-
-	// take a set of comparators and determine whether there
-	// exists a version which can satisfy it
-	const isSatisfiable = (comparators, options) => {
-	  let result = true;
-	  const remainingComparators = comparators.slice();
-	  let testComparator = remainingComparators.pop();
-
-	  while (result && remainingComparators.length) {
-	    result = remainingComparators.every((otherComparator) => {
-	      return testComparator.intersects(otherComparator, options)
-	    });
-
-	    testComparator = remainingComparators.pop();
-	  }
-
-	  return result
-	};
-
-	// comprised of xranges, tildes, stars, and gtlt's at this point.
-	// already replaced the hyphen ranges
-	// turn into a set of JUST comparators.
-	const parseComparator = (comp, options) => {
-	  comp = comp.replace(re[t.BUILD], '');
-	  debug('comp', comp, options);
-	  comp = replaceCarets(comp, options);
-	  debug('caret', comp);
-	  comp = replaceTildes(comp, options);
-	  debug('tildes', comp);
-	  comp = replaceXRanges(comp, options);
-	  debug('xrange', comp);
-	  comp = replaceStars(comp, options);
-	  debug('stars', comp);
-	  return comp
-	};
-
-	const isX = id => !id || id.toLowerCase() === 'x' || id === '*';
-
-	const invalidXRangeOrder = (M, m, p) => (
-	  (isX(M) && !isX(m)) ||
-	  (isX(m) && p && !isX(p))
-	);
-
-	// ~, ~> --> * (any, kinda silly)
-	// ~2, ~2.x, ~2.x.x, ~>2, ~>2.x ~>2.x.x --> >=2.0.0 <3.0.0-0
-	// ~2.0, ~2.0.x, ~>2.0, ~>2.0.x --> >=2.0.0 <2.1.0-0
-	// ~1.2, ~1.2.x, ~>1.2, ~>1.2.x --> >=1.2.0 <1.3.0-0
-	// ~1.2.3, ~>1.2.3 --> >=1.2.3 <1.3.0-0
-	// ~1.2.0, ~>1.2.0 --> >=1.2.0 <1.3.0-0
-	// ~0.0.1 --> >=0.0.1 <0.1.0-0
-	const replaceTildes = (comp, options) => {
-	  return comp
-	    .trim()
-	    .split(/\s+/)
-	    .map((c) => replaceTilde(c, options))
-	    .join(' ')
-	};
-
-	const replaceTilde = (comp, options) => {
-	  const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
-	  // if we're including prereleases in the match, then the lower bound is
-	  // -0, the lowest possible prerelease value, just like x-ranges and carets.
-	  // this keeps `~1.2` equivalent to the `1.2.x` x-range it's documented as.
-	  const z = options.includePrerelease ? '-0' : '';
-	  return comp.replace(r, (_, M, m, p, pr) => {
-	    debug('tilde', comp, _, M, m, p, pr);
-	    let ret;
-
-	    if (isX(M)) {
-	      ret = '';
-	    } else if (isX(m)) {
-	      ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
-	    } else if (isX(p)) {
-	      // ~1.2 == >=1.2.0 <1.3.0-0
-	      ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
-	    } else if (pr) {
-	      debug('replaceTilde pr', pr);
-	      ret = `>=${M}.${m}.${p}-${pr
-	      } <${M}.${+m + 1}.0-0`;
-	    } else {
-	      // ~1.2.3 == >=1.2.3 <1.3.0-0
-	      ret = `>=${M}.${m}.${p
-	      } <${M}.${+m + 1}.0-0`;
-	    }
-
-	    debug('tilde return', ret);
-	    return ret
-	  })
-	};
-
-	// ^ --> * (any, kinda silly)
-	// ^2, ^2.x, ^2.x.x --> >=2.0.0 <3.0.0-0
-	// ^2.0, ^2.0.x --> >=2.0.0 <3.0.0-0
-	// ^1.2, ^1.2.x --> >=1.2.0 <2.0.0-0
-	// ^1.2.3 --> >=1.2.3 <2.0.0-0
-	// ^1.2.0 --> >=1.2.0 <2.0.0-0
-	// ^0.0.1 --> >=0.0.1 <0.0.2-0
-	// ^0.1.0 --> >=0.1.0 <0.2.0-0
-	const replaceCarets = (comp, options) => {
-	  return comp
-	    .trim()
-	    .split(/\s+/)
-	    .map((c) => replaceCaret(c, options))
-	    .join(' ')
-	};
-
-	const replaceCaret = (comp, options) => {
-	  debug('caret', comp, options);
-	  const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
-	  const z = options.includePrerelease ? '-0' : '';
-	  return comp.replace(r, (_, M, m, p, pr) => {
-	    debug('caret', comp, _, M, m, p, pr);
-	    let ret;
-
-	    if (isX(M)) {
-	      ret = '';
-	    } else if (isX(m)) {
-	      ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
-	    } else if (isX(p)) {
-	      if (M === '0') {
-	        ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
-	      } else {
-	        ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`;
-	      }
-	    } else if (pr) {
-	      debug('replaceCaret pr', pr);
-	      if (M === '0') {
-	        if (m === '0') {
-	          ret = `>=${M}.${m}.${p}-${pr
-	          } <${M}.${m}.${+p + 1}-0`;
-	        } else {
-	          ret = `>=${M}.${m}.${p}-${pr
-	          } <${M}.${+m + 1}.0-0`;
-	        }
-	      } else {
-	        ret = `>=${M}.${m}.${p}-${pr
-	        } <${+M + 1}.0.0-0`;
-	      }
-	    } else {
-	      debug('no pr');
-	      if (M === '0') {
-	        if (m === '0') {
-	          ret = `>=${M}.${m}.${p
-	          } <${M}.${m}.${+p + 1}-0`;
-	        } else {
-	          ret = `>=${M}.${m}.${p
-	          } <${M}.${+m + 1}.0-0`;
-	        }
-	      } else {
-	        ret = `>=${M}.${m}.${p
-	        } <${+M + 1}.0.0-0`;
-	      }
-	    }
-
-	    debug('caret return', ret);
-	    return ret
-	  })
-	};
-
-	const replaceXRanges = (comp, options) => {
-	  debug('replaceXRanges', comp, options);
-	  return comp
-	    .split(/\s+/)
-	    .map((c) => replaceXRange(c, options))
-	    .join(' ')
-	};
-
-	const replaceXRange = (comp, options) => {
-	  comp = comp.trim();
-	  const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
-	  return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
-	    debug('xRange', comp, ret, gtlt, M, m, p, pr);
-	    if (invalidXRangeOrder(M, m, p)) {
-	      return comp
-	    }
-
-	    const xM = isX(M);
-	    const xm = xM || isX(m);
-	    const xp = xm || isX(p);
-	    const anyX = xp;
-
-	    if (gtlt === '=' && anyX) {
-	      gtlt = '';
-	    }
-
-	    // if we're including prereleases in the match, then we need
-	    // to fix this to -0, the lowest possible prerelease value
-	    pr = options.includePrerelease ? '-0' : '';
-
-	    if (xM) {
-	      if (gtlt === '>' || gtlt === '<') {
-	        // nothing is allowed
-	        ret = '<0.0.0-0';
-	      } else {
-	        // nothing is forbidden
-	        ret = '*';
-	      }
-	    } else if (gtlt && anyX) {
-	      // we know patch is an x, because we have any x at all.
-	      // replace X with 0
-	      if (xm) {
-	        m = 0;
-	      }
-	      p = 0;
-
-	      if (gtlt === '>') {
-	        // >1 => >=2.0.0
-	        // >1.2 => >=1.3.0
-	        gtlt = '>=';
-	        if (xm) {
-	          M = +M + 1;
-	          m = 0;
-	          p = 0;
-	        } else {
-	          m = +m + 1;
-	          p = 0;
-	        }
-	      } else if (gtlt === '<=') {
-	        // <=0.7.x is actually <0.8.0, since any 0.7.x should
-	        // pass.  Similarly, <=7.x is actually <8.0.0, etc.
-	        gtlt = '<';
-	        if (xm) {
-	          M = +M + 1;
-	        } else {
-	          m = +m + 1;
-	        }
-	      }
-
-	      if (gtlt === '<') {
-	        pr = '-0';
-	      }
-
-	      ret = `${gtlt + M}.${m}.${p}${pr}`;
-	    } else if (xm) {
-	      ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`;
-	    } else if (xp) {
-	      ret = `>=${M}.${m}.0${pr
-	      } <${M}.${+m + 1}.0-0`;
-	    }
-
-	    debug('xRange return', ret);
-
-	    return ret
-	  })
-	};
-
-	// Because * is AND-ed with everything else in the comparator,
-	// and '' means "any version", just remove the *s entirely.
-	const replaceStars = (comp, options) => {
-	  debug('replaceStars', comp, options);
-	  // Looseness is ignored here.  star is always as loose as it gets!
-	  return comp
-	    .trim()
-	    .replace(re[t.STAR], '')
-	};
-
-	const replaceGTE0 = (comp, options) => {
-	  debug('replaceGTE0', comp, options);
-	  return comp
-	    .trim()
-	    .replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], '')
-	};
-
-	// This function is passed to string.replace(re[t.HYPHENRANGE])
-	// M, m, patch, prerelease, build
-	// 1.2 - 3.4.5 => >=1.2.0 <=3.4.5
-	// 1.2.3 - 3.4 => >=1.2.0 <3.5.0-0 Any 3.4.x will do
-	// 1.2 - 3.4 => >=1.2.0 <3.5.0-0
-	// TODO build?
-	const hyphenReplace = incPr => ($0,
-	  from, fM, fm, fp, fpr, fb,
-	  to, tM, tm, tp, tpr) => {
-	  if (isX(fM)) {
-	    from = '';
-	  } else if (isX(fm)) {
-	    from = `>=${fM}.0.0${incPr ? '-0' : ''}`;
-	  } else if (isX(fp)) {
-	    from = `>=${fM}.${fm}.0${incPr ? '-0' : ''}`;
-	  } else if (fpr) {
-	    from = `>=${from}`;
-	  } else {
-	    from = `>=${from}${incPr ? '-0' : ''}`;
-	  }
-
-	  if (isX(tM)) {
-	    to = '';
-	  } else if (isX(tm)) {
-	    to = `<${+tM + 1}.0.0-0`;
-	  } else if (isX(tp)) {
-	    to = `<${tM}.${+tm + 1}.0-0`;
-	  } else if (tpr) {
-	    to = `<=${tM}.${tm}.${tp}-${tpr}`;
-	  } else if (incPr) {
-	    to = `<${tM}.${tm}.${+tp + 1}-0`;
-	  } else {
-	    to = `<=${to}`;
-	  }
-
-	  return `${from} ${to}`.trim()
-	};
-
-	const testSet = (set, version, options) => {
-	  for (let i = 0; i < set.length; i++) {
-	    if (!set[i].test(version)) {
-	      return false
-	    }
-	  }
-
-	  if (version.prerelease.length && !options.includePrerelease) {
-	    // Find the set of versions that are allowed to have prereleases
-	    // For example, ^1.2.3-pr.1 desugars to >=1.2.3-pr.1 <2.0.0
-	    // That should allow `1.2.3-pr.2` to pass.
-	    // However, `1.2.4-alpha.notready` should NOT be allowed,
-	    // even though it's within the range set by the comparators.
-	    for (let i = 0; i < set.length; i++) {
-	      debug(set[i].semver);
-	      if (set[i].semver === Comparator.ANY) {
-	        continue
-	      }
-
-	      if (set[i].semver.prerelease.length > 0) {
-	        const allowed = set[i].semver;
-	        if (allowed.major === version.major &&
-	            allowed.minor === version.minor &&
-	            allowed.patch === version.patch) {
-	          return true
-	        }
-	      }
-	    }
-
-	    // Version has a -pre, but it's not one of the ones we like.
-	    return false
-	  }
-
-	  return true
-	};
-	return range$1;
-}
-
-var comparator;
-var hasRequiredComparator;
-
-function requireComparator () {
-	if (hasRequiredComparator) return comparator;
-	hasRequiredComparator = 1;
-
-	const ANY = Symbol('SemVer ANY');
-	// hoisted class for cyclic dependency
-	class Comparator {
-	  static get ANY () {
-	    return ANY
-	  }
-
-	  constructor (comp, options) {
-	    options = parseOptions(options);
-
-	    if (comp instanceof Comparator) {
-	      if (comp.loose === !!options.loose) {
-	        return comp
-	      } else {
-	        comp = comp.value;
-	      }
-	    }
-
-	    comp = comp.trim().split(/\s+/).join(' ');
-	    debug('comparator', comp, options);
-	    this.options = options;
-	    this.loose = !!options.loose;
-	    this.parse(comp);
-
-	    if (this.semver === ANY) {
-	      this.value = '';
-	    } else {
-	      this.value = this.operator + this.semver.version;
-	    }
-
-	    debug('comp', this);
-	  }
-
-	  parse (comp) {
-	    const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
-	    const m = comp.match(r);
-
-	    if (!m) {
-	      throw new TypeError(`Invalid comparator: ${comp}`)
-	    }
-
-	    this.operator = m[1] !== undefined ? m[1] : '';
-	    if (this.operator === '=') {
-	      this.operator = '';
-	    }
-
-	    // if it literally is just '>' or '' then allow anything.
-	    if (!m[2]) {
-	      this.semver = ANY;
-	    } else {
-	      this.semver = new SemVer(m[2], this.options.loose);
-	    }
-	  }
-
-	  toString () {
-	    return this.value
-	  }
-
-	  test (version) {
-	    debug('Comparator.test', version, this.options.loose);
-
-	    if (this.semver === ANY || version === ANY) {
-	      return true
-	    }
-
-	    if (typeof version === 'string') {
-	      try {
-	        version = new SemVer(version, this.options);
-	      } catch (er) {
-	        return false
-	      }
-	    }
-
-	    return cmp(version, this.operator, this.semver, this.options)
-	  }
-
-	  intersects (comp, options) {
-	    if (!(comp instanceof Comparator)) {
-	      throw new TypeError('a Comparator is required')
-	    }
-
-	    if (this.operator === '') {
-	      if (this.value === '') {
-	        return true
-	      }
-	      return new Range(comp.value, options).test(this.value)
-	    } else if (comp.operator === '') {
-	      if (comp.value === '') {
-	        return true
-	      }
-	      return new Range(this.value, options).test(comp.semver)
-	    }
-
-	    options = parseOptions(options);
-
-	    // Special cases where nothing can possibly be lower
-	    if (options.includePrerelease &&
-	      (this.value === '<0.0.0-0' || comp.value === '<0.0.0-0')) {
-	      return false
-	    }
-	    if (!options.includePrerelease &&
-	      (this.value.startsWith('<0.0.0') || comp.value.startsWith('<0.0.0'))) {
-	      return false
-	    }
-
-	    // Same direction increasing (> or >=)
-	    if (this.operator.startsWith('>') && comp.operator.startsWith('>')) {
-	      return true
-	    }
-	    // Same direction decreasing (< or <=)
-	    if (this.operator.startsWith('<') && comp.operator.startsWith('<')) {
-	      return true
-	    }
-	    // same SemVer and both sides are inclusive (<= or >=)
-	    if (
-	      (this.semver.version === comp.semver.version) &&
-	      this.operator.includes('=') && comp.operator.includes('=')) {
-	      return true
-	    }
-	    // opposite directions less than
-	    if (cmp(this.semver, '<', comp.semver, options) &&
-	      this.operator.startsWith('>') && comp.operator.startsWith('<')) {
-	      return true
-	    }
-	    // opposite directions greater than
-	    if (cmp(this.semver, '>', comp.semver, options) &&
-	      this.operator.startsWith('<') && comp.operator.startsWith('>')) {
-	      return true
-	    }
-	    return false
-	  }
-	}
-
-	comparator = Comparator;
-
-	const parseOptions = requireParseOptions();
-	const { safeRe: re, t } = requireRe();
-	const cmp = requireCmp();
-	const debug = requireDebug$1();
-	const SemVer = requireSemver$3();
-	const Range = requireRange$1();
-	return comparator;
-}
-
-var satisfies_1;
-var hasRequiredSatisfies;
-
-function requireSatisfies () {
-	if (hasRequiredSatisfies) return satisfies_1;
-	hasRequiredSatisfies = 1;
-
-	const Range = requireRange$1();
-	const satisfies = (version, range, options) => {
-	  try {
-	    range = new Range(range, options);
-	  } catch (er) {
-	    return false
-	  }
-	  return range.test(version)
-	};
-	satisfies_1 = satisfies;
-	return satisfies_1;
-}
-
-var toComparators_1;
-var hasRequiredToComparators;
-
-function requireToComparators () {
-	if (hasRequiredToComparators) return toComparators_1;
-	hasRequiredToComparators = 1;
-
-	const Range = requireRange$1();
-
-	// Mostly just for testing and legacy API reasons
-	const toComparators = (range, options) =>
-	  new Range(range, options).set
-	    .map(comp => comp.map(c => c.value).join(' ').trim().split(' '));
-
-	toComparators_1 = toComparators;
-	return toComparators_1;
-}
-
-var maxSatisfying_1;
-var hasRequiredMaxSatisfying;
-
-function requireMaxSatisfying () {
-	if (hasRequiredMaxSatisfying) return maxSatisfying_1;
-	hasRequiredMaxSatisfying = 1;
-
-	const SemVer = requireSemver$3();
-	const Range = requireRange$1();
-
-	const maxSatisfying = (versions, range, options) => {
-	  let max = null;
-	  let maxSV = null;
-	  let rangeObj = null;
-	  try {
-	    rangeObj = new Range(range, options);
-	  } catch (er) {
-	    return null
-	  }
-	  versions.forEach((v) => {
-	    if (rangeObj.test(v)) {
-	      // satisfies(v, range, options)
-	      if (!max || maxSV.compare(v) === -1) {
-	        // compare(max, v, true)
-	        max = v;
-	        maxSV = new SemVer(max, options);
-	      }
-	    }
-	  });
-	  return max
-	};
-	maxSatisfying_1 = maxSatisfying;
-	return maxSatisfying_1;
-}
-
-var minSatisfying_1;
-var hasRequiredMinSatisfying;
-
-function requireMinSatisfying () {
-	if (hasRequiredMinSatisfying) return minSatisfying_1;
-	hasRequiredMinSatisfying = 1;
-
-	const SemVer = requireSemver$3();
-	const Range = requireRange$1();
-	const minSatisfying = (versions, range, options) => {
-	  let min = null;
-	  let minSV = null;
-	  let rangeObj = null;
-	  try {
-	    rangeObj = new Range(range, options);
-	  } catch (er) {
-	    return null
-	  }
-	  versions.forEach((v) => {
-	    if (rangeObj.test(v)) {
-	      // satisfies(v, range, options)
-	      if (!min || minSV.compare(v) === 1) {
-	        // compare(min, v, true)
-	        min = v;
-	        minSV = new SemVer(min, options);
-	      }
-	    }
-	  });
-	  return min
-	};
-	minSatisfying_1 = minSatisfying;
-	return minSatisfying_1;
-}
-
-var minVersion_1;
-var hasRequiredMinVersion;
-
-function requireMinVersion () {
-	if (hasRequiredMinVersion) return minVersion_1;
-	hasRequiredMinVersion = 1;
-
-	const SemVer = requireSemver$3();
-	const Range = requireRange$1();
-	const gt = requireGt();
-
-	const minVersion = (range, loose) => {
-	  range = new Range(range, loose);
-
-	  let minver = new SemVer('0.0.0');
-	  if (range.test(minver)) {
-	    return minver
-	  }
-
-	  minver = new SemVer('0.0.0-0');
-	  if (range.test(minver)) {
-	    return minver
-	  }
-
-	  minver = null;
-	  for (let i = 0; i < range.set.length; ++i) {
-	    const comparators = range.set[i];
-
-	    let setMin = null;
-	    comparators.forEach((comparator) => {
-	      // Clone to avoid manipulating the comparator's semver object.
-	      const compver = new SemVer(comparator.semver.version);
-	      switch (comparator.operator) {
-	        case '>':
-	          if (compver.prerelease.length === 0) {
-	            compver.patch++;
-	          } else {
-	            compver.prerelease.push(0);
-	          }
-	          compver.raw = compver.format();
-	          /* fallthrough */
-	        case '':
-	        case '>=':
-	          if (!setMin || gt(compver, setMin)) {
-	            setMin = compver;
-	          }
-	          break
-	        case '<':
-	        case '<=':
-	          /* Ignore maximum versions */
-	          break
-	        /* istanbul ignore next */
-	        default:
-	          throw new Error(`Unexpected operation: ${comparator.operator}`)
-	      }
-	    });
-	    if (setMin && (!minver || gt(minver, setMin))) {
-	      minver = setMin;
-	    }
-	  }
-
-	  if (minver && range.test(minver)) {
-	    return minver
-	  }
-
-	  return null
-	};
-	minVersion_1 = minVersion;
-	return minVersion_1;
-}
-
-var valid;
-var hasRequiredValid;
-
-function requireValid () {
-	if (hasRequiredValid) return valid;
-	hasRequiredValid = 1;
-
-	const Range = requireRange$1();
-	const validRange = (range, options) => {
-	  try {
-	    // Return '*' instead of '' so that truthiness works.
-	    // This will throw if it's invalid anyway
-	    return new Range(range, options).range || '*'
-	  } catch (er) {
-	    return null
-	  }
-	};
-	valid = validRange;
-	return valid;
-}
-
-var outside_1;
-var hasRequiredOutside;
-
-function requireOutside () {
-	if (hasRequiredOutside) return outside_1;
-	hasRequiredOutside = 1;
-
-	const SemVer = requireSemver$3();
-	const Comparator = requireComparator();
-	const { ANY } = Comparator;
-	const Range = requireRange$1();
-	const satisfies = requireSatisfies();
-	const gt = requireGt();
-	const lt = requireLt();
-	const lte = requireLte();
-	const gte = requireGte();
-
-	const outside = (version, range, hilo, options) => {
-	  version = new SemVer(version, options);
-	  range = new Range(range, options);
-
-	  let gtfn, ltefn, ltfn, comp, ecomp;
-	  switch (hilo) {
-	    case '>':
-	      gtfn = gt;
-	      ltefn = lte;
-	      ltfn = lt;
-	      comp = '>';
-	      ecomp = '>=';
-	      break
-	    case '<':
-	      gtfn = lt;
-	      ltefn = gte;
-	      ltfn = gt;
-	      comp = '<';
-	      ecomp = '<=';
-	      break
-	    default:
-	      throw new TypeError('Must provide a hilo val of "<" or ">"')
-	  }
-
-	  // If it satisfies the range it is not outside
-	  if (satisfies(version, range, options)) {
-	    return false
-	  }
-
-	  // From now on, variable terms are as if we're in "gtr" mode.
-	  // but note that everything is flipped for the "ltr" function.
-
-	  for (let i = 0; i < range.set.length; ++i) {
-	    const comparators = range.set[i];
-
-	    let high = null;
-	    let low = null;
-
-	    comparators.forEach((comparator) => {
-	      if (comparator.semver === ANY) {
-	        comparator = new Comparator('>=0.0.0');
-	      }
-	      high = high || comparator;
-	      low = low || comparator;
-	      if (gtfn(comparator.semver, high.semver, options)) {
-	        high = comparator;
-	      } else if (ltfn(comparator.semver, low.semver, options)) {
-	        low = comparator;
-	      }
-	    });
-
-	    // If the edge version comparator has a operator then our version
-	    // isn't outside it
-	    if (high.operator === comp || high.operator === ecomp) {
-	      return false
-	    }
-
-	    // If the lowest version comparator has an operator and our version
-	    // is less than it then it isn't higher than the range
-	    if ((!low.operator || low.operator === comp) &&
-	        ltefn(version, low.semver)) {
-	      return false
-	    } else if (low.operator === ecomp && ltfn(version, low.semver)) {
-	      return false
-	    }
-	  }
-	  return true
-	};
-
-	outside_1 = outside;
-	return outside_1;
-}
-
-var gtr_1;
-var hasRequiredGtr;
-
-function requireGtr () {
-	if (hasRequiredGtr) return gtr_1;
-	hasRequiredGtr = 1;
-
-	// Determine if version is greater than all the versions possible in the range.
-	const outside = requireOutside();
-	const gtr = (version, range, options) => outside(version, range, '>', options);
-	gtr_1 = gtr;
-	return gtr_1;
-}
-
-var ltr_1;
-var hasRequiredLtr;
-
-function requireLtr () {
-	if (hasRequiredLtr) return ltr_1;
-	hasRequiredLtr = 1;
-
-	const outside = requireOutside();
-	// Determine if version is less than all the versions possible in the range
-	const ltr = (version, range, options) => outside(version, range, '<', options);
-	ltr_1 = ltr;
-	return ltr_1;
-}
-
-var intersects_1;
-var hasRequiredIntersects;
-
-function requireIntersects () {
-	if (hasRequiredIntersects) return intersects_1;
-	hasRequiredIntersects = 1;
-
-	const Range = requireRange$1();
-	const intersects = (r1, r2, options) => {
-	  r1 = new Range(r1, options);
-	  r2 = new Range(r2, options);
-	  return r1.intersects(r2, options)
-	};
-	intersects_1 = intersects;
-	return intersects_1;
-}
-
-var simplify;
-var hasRequiredSimplify;
-
-function requireSimplify () {
-	if (hasRequiredSimplify) return simplify;
-	hasRequiredSimplify = 1;
-
-	// given a set of versions and a range, create a "simplified" range
-	// that includes the same versions that the original range does
-	// If the original range is shorter than the simplified one, return that.
-	const satisfies = requireSatisfies();
-	const compare = requireCompare();
-	simplify = (versions, range, options) => {
-	  const set = [];
-	  let first = null;
-	  let prev = null;
-	  const v = versions.sort((a, b) => compare(a, b, options));
-	  for (const version of v) {
-	    const included = satisfies(version, range, options);
-	    if (included) {
-	      prev = version;
-	      if (!first) {
-	        first = version;
-	      }
-	    } else {
-	      if (prev) {
-	        set.push([first, prev]);
-	      }
-	      prev = null;
-	      first = null;
-	    }
-	  }
-	  if (first) {
-	    set.push([first, null]);
-	  }
-
-	  const ranges = [];
-	  for (const [min, max] of set) {
-	    if (min === max) {
-	      ranges.push(min);
-	    } else if (!max && min === v[0]) {
-	      ranges.push('*');
-	    } else if (!max) {
-	      ranges.push(`>=${min}`);
-	    } else if (min === v[0]) {
-	      ranges.push(`<=${max}`);
-	    } else {
-	      ranges.push(`${min} - ${max}`);
-	    }
-	  }
-	  const simplified = ranges.join(' || ');
-	  const original = typeof range.raw === 'string' ? range.raw : String(range);
-	  return simplified.length < original.length ? simplified : range
-	};
-	return simplify;
-}
-
-var subset_1;
-var hasRequiredSubset;
-
-function requireSubset () {
-	if (hasRequiredSubset) return subset_1;
-	hasRequiredSubset = 1;
-
-	const Range = requireRange$1();
-	const Comparator = requireComparator();
-	const { ANY } = Comparator;
-	const satisfies = requireSatisfies();
-	const compare = requireCompare();
-
-	// Complex range `r1 || r2 || ...` is a subset of `R1 || R2 || ...` iff:
-	// - Every simple range `r1, r2, ...` is a null set, OR
-	// - Every simple range `r1, r2, ...` which is not a null set is a subset of
-	//   some `R1, R2, ...`
-	//
-	// Simple range `c1 c2 ...` is a subset of simple range `C1 C2 ...` iff:
-	// - If c is only the ANY comparator
-	//   - If C is only the ANY comparator, return true
-	//   - Else if in prerelease mode, return false
-	//   - else replace c with `[>=0.0.0]`
-	// - If C is only the ANY comparator
-	//   - if in prerelease mode, return true
-	//   - else replace C with `[>=0.0.0]`
-	// - Let EQ be the set of = comparators in c
-	// - If EQ is more than one, return true (null set)
-	// - Let GT be the highest > or >= comparator in c
-	// - Let LT be the lowest < or <= comparator in c
-	// - If GT and LT, and GT.semver > LT.semver, return true (null set)
-	// - If any C is a = range, and GT or LT are set, return false
-	// - If EQ
-	//   - If GT, and EQ does not satisfy GT, return true (null set)
-	//   - If LT, and EQ does not satisfy LT, return true (null set)
-	//   - If EQ satisfies every C, return true
-	//   - Else return false
-	// - If GT
-	//   - If GT.semver is lower than any > or >= comp in C, return false
-	//   - If GT is >=, and GT.semver does not satisfy every C, return false
-	//   - If GT.semver has a prerelease, and not in prerelease mode
-	//     - If no C has a prerelease and the GT.semver tuple, return false
-	// - If LT
-	//   - If LT.semver is greater than any < or <= comp in C, return false
-	//   - If LT is <=, and LT.semver does not satisfy every C, return false
-	//   - If LT.semver has a prerelease, and not in prerelease mode
-	//     - If no C has a prerelease and the LT.semver tuple, return false
-	// - Else return true
-
-	const subset = (sub, dom, options = {}) => {
-	  if (sub === dom) {
-	    return true
-	  }
-
-	  sub = new Range(sub, options);
-	  dom = new Range(dom, options);
-	  let sawNonNull = false;
-
-	  OUTER: for (const simpleSub of sub.set) {
-	    for (const simpleDom of dom.set) {
-	      const isSub = simpleSubset(simpleSub, simpleDom, options);
-	      sawNonNull = sawNonNull || isSub !== null;
-	      if (isSub) {
-	        continue OUTER
-	      }
-	    }
-	    // the null set is a subset of everything, but null simple ranges in
-	    // a complex range should be ignored.  so if we saw a non-null range,
-	    // then we know this isn't a subset, but if EVERY simple range was null,
-	    // then it is a subset.
-	    if (sawNonNull) {
-	      return false
-	    }
-	  }
-	  return true
-	};
-
-	const minimumVersionWithPreRelease = [new Comparator('>=0.0.0-0')];
-	const minimumVersion = [new Comparator('>=0.0.0')];
-
-	const simpleSubset = (sub, dom, options) => {
-	  if (sub === dom) {
-	    return true
-	  }
-
-	  if (sub.length === 1 && sub[0].semver === ANY) {
-	    if (dom.length === 1 && dom[0].semver === ANY) {
-	      return true
-	    } else if (options.includePrerelease) {
-	      sub = minimumVersionWithPreRelease;
-	    } else {
-	      sub = minimumVersion;
-	    }
-	  }
-
-	  if (dom.length === 1 && dom[0].semver === ANY) {
-	    if (options.includePrerelease) {
-	      return true
-	    } else {
-	      dom = minimumVersion;
-	    }
-	  }
-
-	  const eqSet = new Set();
-	  let gt, lt;
-	  for (const c of sub) {
-	    if (c.operator === '>' || c.operator === '>=') {
-	      gt = higherGT(gt, c, options);
-	    } else if (c.operator === '<' || c.operator === '<=') {
-	      lt = lowerLT(lt, c, options);
-	    } else {
-	      eqSet.add(c.semver);
-	    }
-	  }
-
-	  if (eqSet.size > 1) {
-	    return null
-	  }
-
-	  let gtltComp;
-	  if (gt && lt) {
-	    gtltComp = compare(gt.semver, lt.semver, options);
-	    if (gtltComp > 0) {
-	      return null
-	    } else if (gtltComp === 0 && (gt.operator !== '>=' || lt.operator !== '<=')) {
-	      return null
-	    }
-	  }
-
-	  // will iterate one or zero times
-	  for (const eq of eqSet) {
-	    if (gt && !satisfies(eq, String(gt), options)) {
-	      return null
-	    }
-
-	    if (lt && !satisfies(eq, String(lt), options)) {
-	      return null
-	    }
-
-	    for (const c of dom) {
-	      if (!satisfies(eq, String(c), options)) {
-	        return false
-	      }
-	    }
-
-	    return true
-	  }
-
-	  let higher, lower;
-	  let hasDomLT, hasDomGT;
-	  // if the subset has a prerelease, we need a comparator in the superset
-	  // with the same tuple and a prerelease, or it's not a subset
-	  let needDomLTPre = lt &&
-	    !options.includePrerelease &&
-	    lt.semver.prerelease.length ? lt.semver : false;
-	  let needDomGTPre = gt &&
-	    !options.includePrerelease &&
-	    gt.semver.prerelease.length ? gt.semver : false;
-	  // exception: <1.2.3-0 is the same as <1.2.3
-	  if (needDomLTPre && needDomLTPre.prerelease.length === 1 &&
-	      lt.operator === '<' && needDomLTPre.prerelease[0] === 0) {
-	    needDomLTPre = false;
-	  }
-
-	  for (const c of dom) {
-	    hasDomGT = hasDomGT || c.operator === '>' || c.operator === '>=';
-	    hasDomLT = hasDomLT || c.operator === '<' || c.operator === '<=';
-	    if (gt) {
-	      if (needDomGTPre) {
-	        if (c.semver.prerelease && c.semver.prerelease.length &&
-	            c.semver.major === needDomGTPre.major &&
-	            c.semver.minor === needDomGTPre.minor &&
-	            c.semver.patch === needDomGTPre.patch) {
-	          needDomGTPre = false;
-	        }
-	      }
-	      if (c.operator === '>' || c.operator === '>=') {
-	        higher = higherGT(gt, c, options);
-	        if (higher === c && higher !== gt) {
-	          return false
-	        }
-	      } else if (gt.operator === '>=' && !c.test(gt.semver)) {
-	        return false
-	      }
-	    }
-	    if (lt) {
-	      if (needDomLTPre) {
-	        if (c.semver.prerelease && c.semver.prerelease.length &&
-	            c.semver.major === needDomLTPre.major &&
-	            c.semver.minor === needDomLTPre.minor &&
-	            c.semver.patch === needDomLTPre.patch) {
-	          needDomLTPre = false;
-	        }
-	      }
-	      if (c.operator === '<' || c.operator === '<=') {
-	        lower = lowerLT(lt, c, options);
-	        if (lower === c && lower !== lt) {
-	          return false
-	        }
-	      } else if (lt.operator === '<=' && !c.test(lt.semver)) {
-	        return false
-	      }
-	    }
-	    if (!c.operator && (lt || gt) && gtltComp !== 0) {
-	      return false
-	    }
-	  }
-
-	  // if there was a < or >, and nothing in the dom, then must be false
-	  // UNLESS it was limited by another range in the other direction.
-	  // Eg, >1.0.0 <1.0.1 is still a subset of <2.0.0
-	  if (gt && hasDomLT && !lt && gtltComp !== 0) {
-	    return false
-	  }
-
-	  if (lt && hasDomGT && !gt && gtltComp !== 0) {
-	    return false
-	  }
-
-	  // we needed a prerelease range in a specific tuple, but didn't get one
-	  // then this isn't a subset.  eg >=1.2.3-pre is not a subset of >=1.0.0,
-	  // because it includes prereleases in the 1.2.3 tuple
-	  if (needDomGTPre || needDomLTPre) {
-	    return false
-	  }
-
-	  return true
-	};
-
-	// >=1.2.3 is lower than >1.2.3
-	const higherGT = (a, b, options) => {
-	  if (!a) {
-	    return b
-	  }
-	  const comp = compare(a.semver, b.semver, options);
-	  return comp > 0 ? a
-	    : comp < 0 ? b
-	    : b.operator === '>' && a.operator === '>=' ? b
-	    : a
-	};
-
-	// <=1.2.3 is higher than <1.2.3
-	const lowerLT = (a, b, options) => {
-	  if (!a) {
-	    return b
-	  }
-	  const comp = compare(a.semver, b.semver, options);
-	  return comp < 0 ? a
-	    : comp > 0 ? b
-	    : b.operator === '<' && a.operator === '<=' ? b
-	    : a
-	};
-
-	subset_1 = subset;
-	return subset_1;
-}
-
-var semver$2;
-var hasRequiredSemver$2;
-
-function requireSemver$2 () {
-	if (hasRequiredSemver$2) return semver$2;
-	hasRequiredSemver$2 = 1;
-
-	// just pre-load all the stuff that index.js lazily exports
-	const internalRe = requireRe();
-	const constants = requireConstants$8();
-	const SemVer = requireSemver$3();
-	const identifiers = requireIdentifiers();
-	const parse = requireParse();
-	const valid = requireValid$1();
-	const clean = requireClean();
-	const inc = requireInc();
-	const diff = requireDiff();
-	const major = requireMajor();
-	const minor = requireMinor();
-	const patch = requirePatch();
-	const prerelease = requirePrerelease();
-	const compare = requireCompare();
-	const rcompare = requireRcompare();
-	const compareLoose = requireCompareLoose();
-	const compareBuild = requireCompareBuild();
-	const sort = requireSort();
-	const rsort = requireRsort();
-	const gt = requireGt();
-	const lt = requireLt();
-	const eq = requireEq$1();
-	const neq = requireNeq();
-	const gte = requireGte();
-	const lte = requireLte();
-	const cmp = requireCmp();
-	const coerce = requireCoerce();
-	const truncate = requireTruncate();
-	const Comparator = requireComparator();
-	const Range = requireRange$1();
-	const satisfies = requireSatisfies();
-	const toComparators = requireToComparators();
-	const maxSatisfying = requireMaxSatisfying();
-	const minSatisfying = requireMinSatisfying();
-	const minVersion = requireMinVersion();
-	const validRange = requireValid();
-	const outside = requireOutside();
-	const gtr = requireGtr();
-	const ltr = requireLtr();
-	const intersects = requireIntersects();
-	const simplifyRange = requireSimplify();
-	const subset = requireSubset();
-	semver$2 = {
-	  parse,
-	  valid,
-	  clean,
-	  inc,
-	  diff,
-	  major,
-	  minor,
-	  patch,
-	  prerelease,
-	  compare,
-	  rcompare,
-	  compareLoose,
-	  compareBuild,
-	  sort,
-	  rsort,
-	  gt,
-	  lt,
-	  eq,
-	  neq,
-	  gte,
-	  lte,
-	  cmp,
-	  coerce,
-	  truncate,
-	  Comparator,
-	  Range,
-	  satisfies,
-	  toComparators,
-	  maxSatisfying,
-	  minSatisfying,
-	  minVersion,
-	  validRange,
-	  outside,
-	  gtr,
-	  ltr,
-	  intersects,
-	  simplifyRange,
-	  subset,
-	  SemVer,
-	  re: internalRe.re,
-	  src: internalRe.src,
-	  tokens: internalRe.t,
-	  SEMVER_SPEC_VERSION: constants.SEMVER_SPEC_VERSION,
-	  RELEASE_TYPES: constants.RELEASE_TYPES,
-	  compareIdentifiers: identifiers.compareIdentifiers,
-	  rcompareIdentifiers: identifiers.rcompareIdentifiers,
-	};
-	return semver$2;
-}
-
-var semverExports = requireSemver$2();
-
-// Interface for getting Rocm versions and corresponding download URLs
-class AbstractLinks {
-    rocmVersionToURL = new Map();
-    getAvailableLocalRocmVersions() {
-        return Array.from(this.rocmVersionToURL.keys()).map(s => new semverExports.SemVer(s));
-    }
-    async getLocalURLFromRocmVersion(version) {
-        const urlString = this.rocmVersionToURL.get(`${version}`);
-        if (urlString === undefined) {
-            throw new Error(`Invalid version: ${version}`);
-        }
-        return new URL(urlString);
-    }
-}
-
-/**
- * Singleton class for linux links.
- */
-class LinuxLinks extends AbstractLinks {
-    // Singleton instance
-    static _instance;
-    // Private constructor to prevent instantiation
-    constructor() {
-        super();
-        // Map of Rocm SemVer version to apt repository URL
-        this.rocmVersionToURL = new Map([
-            ['7.2.4', 'https://repo.radeon.com/rocm/apt/7.2.4'],
-            ['7.2.3', 'https://repo.radeon.com/rocm/apt/7.2.3'],
-            ['7.2.2', 'https://repo.radeon.com/rocm/apt/7.2.2'],
-            ['7.2.1', 'https://repo.radeon.com/rocm/apt/7.2.1'],
-            ['7.2.0', 'https://repo.radeon.com/rocm/apt/7.2'],
-            ['7.1.1', 'https://repo.radeon.com/rocm/apt/7.1.1'],
-            ['7.1.0', 'https://repo.radeon.com/rocm/apt/7.1'],
-            ['7.0.3', 'https://repo.radeon.com/rocm/apt/7.0.3'],
-            ['7.0.2', 'https://repo.radeon.com/rocm/apt/7.0.2'],
-            ['7.0.1', 'https://repo.radeon.com/rocm/apt/7.0.1'],
-            ['7.0.0', 'https://repo.radeon.com/rocm/apt/7.0'],
-            ['6.4.4', 'https://repo.radeon.com/rocm/apt/6.4.4'],
-            ['6.4.3', 'https://repo.radeon.com/rocm/apt/6.4.3'],
-            ['6.4.2', 'https://repo.radeon.com/rocm/apt/6.4.2'],
-            ['6.4.1', 'https://repo.radeon.com/rocm/apt/6.4.1'],
-            ['6.4.0', 'https://repo.radeon.com/rocm/apt/6.4'],
-            ['6.3.4', 'https://repo.radeon.com/rocm/apt/6.3.4'],
-            ['6.3.3', 'https://repo.radeon.com/rocm/apt/6.3.3'],
-            ['6.3.2', 'https://repo.radeon.com/rocm/apt/6.3.2'],
-            ['6.3.1', 'https://repo.radeon.com/rocm/apt/6.3.1'],
-            ['6.3.0', 'https://repo.radeon.com/rocm/apt/6.3'],
-            ['6.2.4', 'https://repo.radeon.com/rocm/apt/6.2.4'],
-            ['6.2.3', 'https://repo.radeon.com/rocm/apt/6.2.3'],
-            ['6.2.2', 'https://repo.radeon.com/rocm/apt/6.2.2'],
-            ['6.2.1', 'https://repo.radeon.com/rocm/apt/6.2.1'],
-            ['6.2.0', 'https://repo.radeon.com/rocm/apt/6.2'],
-            ['6.1.5', 'https://repo.radeon.com/rocm/apt/6.1.5'],
-            ['6.1.4', 'https://repo.radeon.com/rocm/apt/6.1.4'],
-            ['6.1.3', 'https://repo.radeon.com/rocm/apt/6.1.3'],
-            ['6.1.2', 'https://repo.radeon.com/rocm/apt/6.1.2'],
-            ['6.1.1', 'https://repo.radeon.com/rocm/apt/6.1.1'],
-            ['6.1.0', 'https://repo.radeon.com/rocm/apt/6.1'],
-            ['6.0.3', 'https://repo.radeon.com/rocm/apt/6.0.3'],
-            ['6.0.2', 'https://repo.radeon.com/rocm/apt/6.0.2'],
-            ['6.0.1', 'https://repo.radeon.com/rocm/apt/6.0.1'],
-            ['6.0.0', 'https://repo.radeon.com/rocm/apt/6.0'],
-            ['5.7.3', 'https://repo.radeon.com/rocm/apt/5.7.3'],
-            ['5.7.2', 'https://repo.radeon.com/rocm/apt/5.7.2'],
-            ['5.7.1', 'https://repo.radeon.com/rocm/apt/5.7.1'],
-            ['5.7.0', 'https://repo.radeon.com/rocm/apt/5.7'],
-            ['5.6.1', 'https://repo.radeon.com/rocm/apt/5.6.1'],
-            ['5.6.0', 'https://repo.radeon.com/rocm/apt/5.6'],
-            ['5.5.3', 'https://repo.radeon.com/rocm/apt/5.5.3'],
-            ['5.5.2', 'https://repo.radeon.com/rocm/apt/5.5.2'],
-            ['5.5.1', 'https://repo.radeon.com/rocm/apt/5.5.1'],
-            ['5.5.0', 'https://repo.radeon.com/rocm/apt/5.5']
-        ]);
-    }
-    async getLocalURLFromRocmVersion(version) {
-        const link = await super.getLocalURLFromRocmVersion(version);
-        const arch = await getArch();
-        if (arch === CPUArch.x86_64) {
-            return new URL(link.toString());
-        }
-        else {
-            throw new Error(`Link only available for x86_64: ${arch}`);
-        }
-    }
-    static get Instance() {
-        return this._instance || (this._instance = new this());
-    }
-}
-
-function verifyLinuxVersion(version) {
-    const linuxLinks = LinuxLinks.Instance;
-    const availableVersions = linuxLinks.getAvailableLocalRocmVersions();
-    if (!availableVersions.some(v => v.compare(version) === 0)) {
-        throw new Error(`Version not available: ${version}`);
-    }
-}
 async function useApt(method) {
-    return method === 'network' && (await getOs()) === OSType.linux;
+    return ((method === 'network' || method === 'apt') &&
+        (await getOs()) === OSType.linux);
 }
 async function aptSetup(version) {
     const osType = await getOs();
@@ -30287,44 +27358,30 @@ async function aptSetup(version) {
     if (archType !== CPUArch.x86_64) {
         throw new Error(`apt setup can only be run on x86_64 runners! Current arch type: ${archType}`);
     }
-    verifyLinuxVersion(version);
-    coreExports.debug(`Setup packages for ROCm ${version}`);
-    const rocmVersion = version.patch === 0
-        ? `${version.major}.${version.minor}`
-        : `${version.major}.${version.minor}.${version.patch}`;
-    let codename = await execReturnOutput('lsb_release', ['-cs']);
-    if (!codename) {
-        codename = 'ubuntu';
-    }
-    const gpgKeyUrl = 'https://repo.radeon.com/rocm/rocm.gpg.key';
-    const keyringPath = '/etc/apt/keyrings/rocm.gpg';
-    const pinPath = '/etc/apt/preferences.d/rocm-pin-600';
-    const listPath = '/etc/apt/sources.list.d/rocm.list';
-    const repoUrl = `https://repo.radeon.com/rocm/apt/${rocmVersion}`;
-    coreExports.debug(`ROCm version string: ${rocmVersion}`);
-    coreExports.debug(`Distribution codename: ${codename}`);
+    coreExports.debug(`Setup APT repository for Intel oneAPI ${version ? version.toString() : ''}`);
+    const gpgKeyUrl = 'https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB';
+    const keyringPath = '/usr/share/keyrings/oneapi-archive-keyring.gpg';
+    const listPath = '/etc/apt/sources.list.d/oneAPI.list';
+    const repoEntry = `deb [signed-by=${keyringPath}] https://apt.repos.intel.com/oneapi all main`;
+    coreExports.debug(`GPG key URL: ${gpgKeyUrl}`);
     coreExports.debug(`Keyring path: ${keyringPath}`);
-    coreExports.debug(`Repo URL: ${repoUrl}`);
-    coreExports.debug('Adding ROCm GPG key');
-    await execExports.exec('sudo mkdir --parents --mode=0755 /etc/apt/keyrings');
+    coreExports.debug(`Sources list path: ${listPath}`);
+    coreExports.debug(`Repository entry: ${repoEntry}`);
+    coreExports.debug('Adding Intel oneAPI GPG key');
+    await execExports.exec('sudo mkdir --parents --mode=0755 /usr/share/keyrings');
     await execExports.exec('bash', [
         '-c',
         `wget -qO - ${gpgKeyUrl} | gpg --yes --dearmor | sudo tee ${keyringPath} > /dev/null`
     ]);
-    coreExports.debug('Setting ROCm repository pin priority');
+    coreExports.debug('Configuring Intel oneAPI APT repository');
     await execExports.exec('bash', [
         '-c',
-        String.raw `echo -e "Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600" | sudo tee ${pinPath} > /dev/null`
+        `echo "${repoEntry}" | sudo tee ${listPath} > /dev/null`
     ]);
-    coreExports.debug(`Adding ROCm repository`);
-    await execExports.exec('bash', [
-        '-c',
-        `echo "deb [arch=amd64 signed-by=${keyringPath}] ${repoUrl} ${codename} main" | sudo tee ${listPath} > /dev/null`
-    ]);
-    coreExports.debug('Updating apt repository list');
+    coreExports.debug('Updating apt repository index');
     await execExports.exec('sudo apt-get update');
 }
-async function aptInstall(version, subPackages = [], nonRocmSubPackages = []) {
+async function aptInstall(version, subPackages = [], nonOneapiSubPackages = [], product = 'toolkit') {
     const osType = await getOs();
     const archType = await getArch();
     if (osType !== OSType.linux) {
@@ -30333,18 +27390,29 @@ async function aptInstall(version, subPackages = [], nonRocmSubPackages = []) {
     if (archType !== CPUArch.x86_64) {
         throw new Error(`apt install can only be run on x86_64 runners! Current arch type: ${archType}`);
     }
-    verifyLinuxVersion(version);
-    if (subPackages.length === 0 && nonRocmSubPackages.length === 0) {
-        // Install default ROCm development package
-        const packageName = 'rocm-dev';
-        coreExports.debug(`Install package: ${packageName}`);
-        return await execExports.exec('sudo apt-get -y install', [packageName]);
+    if (subPackages.length === 0 && nonOneapiSubPackages.length === 0) {
+        const isDLE = product === 'deep-learning-essentials' || product === 'dle';
+        const baseName = isDLE
+            ? 'intel-deep-learning-essentials'
+            : 'intel-oneapi-toolkit';
+        // Install versioned package if available or base package
+        const packageName = `${baseName}-${version.major}.${version.minor}.${version.patch}`;
+        coreExports.debug(`Attempting to install package: ${packageName}`);
+        try {
+            return await execExports.exec('sudo apt-get -y install', [packageName]);
+        }
+        catch {
+            coreExports.debug(`Specific version package ${packageName} not found, installing base package ${baseName}`);
+            return await execExports.exec('sudo apt-get -y install', [baseName]);
+        }
     }
     else {
         // Only install specified packages
-        const prefixedSubPackages = subPackages.map(subPackage => subPackage.startsWith('rocm-') ? subPackage : `rocm-${subPackage}`);
-        const allPackages = prefixedSubPackages.concat(nonRocmSubPackages);
-        coreExports.debug(`Only install subpackages: ${allPackages.join(' ')}`);
+        const prefixedSubPackages = subPackages.map(subPackage => subPackage.startsWith('intel-')
+            ? subPackage
+            : `intel-oneapi-${subPackage}`);
+        const allPackages = prefixedSubPackages.concat(nonOneapiSubPackages);
+        coreExports.debug(`Installing specified subpackages: ${allPackages.join(' ')}`);
         return await execExports.exec('sudo apt-get -y install', allPackages);
     }
 }
@@ -30751,13 +27819,13 @@ function requireInternalPatternHelper () {
 
 var internalPattern = {};
 
-var balancedMatch$2;
-var hasRequiredBalancedMatch$2;
+var balancedMatch;
+var hasRequiredBalancedMatch;
 
-function requireBalancedMatch$2 () {
-	if (hasRequiredBalancedMatch$2) return balancedMatch$2;
-	hasRequiredBalancedMatch$2 = 1;
-	balancedMatch$2 = balanced;
+function requireBalancedMatch () {
+	if (hasRequiredBalancedMatch) return balancedMatch;
+	hasRequiredBalancedMatch = 1;
+	balancedMatch = balanced;
 	function balanced(a, b, str) {
 	  if (a instanceof RegExp) a = maybeMatch(a, str);
 	  if (b instanceof RegExp) b = maybeMatch(b, str);
@@ -30818,18 +27886,18 @@ function requireBalancedMatch$2 () {
 
 	  return result;
 	}
-	return balancedMatch$2;
+	return balancedMatch;
 }
 
-var braceExpansion$2;
-var hasRequiredBraceExpansion$2;
+var braceExpansion$1;
+var hasRequiredBraceExpansion$1;
 
-function requireBraceExpansion$2 () {
-	if (hasRequiredBraceExpansion$2) return braceExpansion$2;
-	hasRequiredBraceExpansion$2 = 1;
-	var balanced = requireBalancedMatch$2();
+function requireBraceExpansion$1 () {
+	if (hasRequiredBraceExpansion$1) return braceExpansion$1;
+	hasRequiredBraceExpansion$1 = 1;
+	var balanced = requireBalancedMatch();
 
-	braceExpansion$2 = expandTop;
+	braceExpansion$1 = expandTop;
 
 	var escSlash = '\0SLASH'+Math.random()+'\0';
 	var escOpen = '\0OPEN'+Math.random()+'\0';
@@ -31260,7 +28328,7 @@ function requireBraceExpansion$2 () {
 
 	  return acc
 	}
-	return braceExpansion$2;
+	return braceExpansion$1;
 }
 
 var minimatch_1$1;
@@ -31278,7 +28346,7 @@ function requireMinimatch$1 () {
 	minimatch.sep = path.sep;
 
 	var GLOBSTAR = minimatch.GLOBSTAR = Minimatch.GLOBSTAR = {};
-	var expand = requireBraceExpansion$2();
+	var expand = requireBraceExpansion$1();
 
 	var plTypes = {
 	  '!': { open: '(?:(?!(?:', close: '))[^/]*?)'},
@@ -32956,13 +30024,13 @@ function requireGlob$1 () {
 	return glob$1;
 }
 
-var semver$1 = {exports: {}};
+var semver$2 = {exports: {}};
 
-var hasRequiredSemver$1;
+var hasRequiredSemver$2;
 
-function requireSemver$1 () {
-	if (hasRequiredSemver$1) return semver$1.exports;
-	hasRequiredSemver$1 = 1;
+function requireSemver$2 () {
+	if (hasRequiredSemver$2) return semver$2.exports;
+	hasRequiredSemver$2 = 1;
 	(function (module, exports) {
 		exports = module.exports = SemVer;
 
@@ -34607,24 +31675,24 @@ function requireSemver$1 () {
 		    '.' + (match[3] || '0') +
 		    '.' + (match[4] || '0'), options)
 		} 
-	} (semver$1, semver$1.exports));
-	return semver$1.exports;
+	} (semver$2, semver$2.exports));
+	return semver$2.exports;
 }
 
-var constants$7 = {};
+var constants$8 = {};
 
-var hasRequiredConstants$7;
+var hasRequiredConstants$8;
 
-function requireConstants$7 () {
-	if (hasRequiredConstants$7) return constants$7;
-	hasRequiredConstants$7 = 1;
-	Object.defineProperty(constants$7, "__esModule", { value: true });
-	constants$7.CacheFileSizeLimit = constants$7.ManifestFilename = constants$7.TarFilename = constants$7.SystemTarPathOnWindows = constants$7.GnuTarPathOnWindows = constants$7.SocketTimeout = constants$7.DefaultRetryDelay = constants$7.DefaultRetryAttempts = constants$7.ArchiveToolType = constants$7.CompressionMethod = constants$7.CacheFilename = void 0;
+function requireConstants$8 () {
+	if (hasRequiredConstants$8) return constants$8;
+	hasRequiredConstants$8 = 1;
+	Object.defineProperty(constants$8, "__esModule", { value: true });
+	constants$8.CacheFileSizeLimit = constants$8.ManifestFilename = constants$8.TarFilename = constants$8.SystemTarPathOnWindows = constants$8.GnuTarPathOnWindows = constants$8.SocketTimeout = constants$8.DefaultRetryDelay = constants$8.DefaultRetryAttempts = constants$8.ArchiveToolType = constants$8.CompressionMethod = constants$8.CacheFilename = void 0;
 	var CacheFilename;
 	(function (CacheFilename) {
 	    CacheFilename["Gzip"] = "cache.tgz";
 	    CacheFilename["Zstd"] = "cache.tzst";
-	})(CacheFilename || (constants$7.CacheFilename = CacheFilename = {}));
+	})(CacheFilename || (constants$8.CacheFilename = CacheFilename = {}));
 	var CompressionMethod;
 	(function (CompressionMethod) {
 	    CompressionMethod["Gzip"] = "gzip";
@@ -34632,29 +31700,29 @@ function requireConstants$7 () {
 	    // This enum is for earlier version of zstd that does not have --long support
 	    CompressionMethod["ZstdWithoutLong"] = "zstd-without-long";
 	    CompressionMethod["Zstd"] = "zstd";
-	})(CompressionMethod || (constants$7.CompressionMethod = CompressionMethod = {}));
+	})(CompressionMethod || (constants$8.CompressionMethod = CompressionMethod = {}));
 	var ArchiveToolType;
 	(function (ArchiveToolType) {
 	    ArchiveToolType["GNU"] = "gnu";
 	    ArchiveToolType["BSD"] = "bsd";
-	})(ArchiveToolType || (constants$7.ArchiveToolType = ArchiveToolType = {}));
+	})(ArchiveToolType || (constants$8.ArchiveToolType = ArchiveToolType = {}));
 	// The default number of retry attempts.
-	constants$7.DefaultRetryAttempts = 2;
+	constants$8.DefaultRetryAttempts = 2;
 	// The default delay in milliseconds between retry attempts.
-	constants$7.DefaultRetryDelay = 5000;
+	constants$8.DefaultRetryDelay = 5000;
 	// Socket timeout in milliseconds during download.  If no traffic is received
 	// over the socket during this period, the socket is destroyed and the download
 	// is aborted.
-	constants$7.SocketTimeout = 5000;
+	constants$8.SocketTimeout = 5000;
 	// The default path of GNUtar on hosted Windows runners
-	constants$7.GnuTarPathOnWindows = `${process.env['PROGRAMFILES']}\\Git\\usr\\bin\\tar.exe`;
+	constants$8.GnuTarPathOnWindows = `${process.env['PROGRAMFILES']}\\Git\\usr\\bin\\tar.exe`;
 	// The default path of BSDtar on hosted Windows runners
-	constants$7.SystemTarPathOnWindows = `${process.env['SYSTEMDRIVE']}\\Windows\\System32\\tar.exe`;
-	constants$7.TarFilename = 'cache.tar';
-	constants$7.ManifestFilename = 'manifest.txt';
-	constants$7.CacheFileSizeLimit = 10 * Math.pow(1024, 3); // 10GiB per repository
+	constants$8.SystemTarPathOnWindows = `${process.env['SYSTEMDRIVE']}\\Windows\\System32\\tar.exe`;
+	constants$8.TarFilename = 'cache.tar';
+	constants$8.ManifestFilename = 'manifest.txt';
+	constants$8.CacheFileSizeLimit = 10 * Math.pow(1024, 3); // 10GiB per repository
 	
-	return constants$7;
+	return constants$8;
 }
 
 var hasRequiredCacheUtils;
@@ -34710,9 +31778,9 @@ function requireCacheUtils () {
 	const crypto = __importStar(require$$0$6);
 	const fs = __importStar(require$$0$7);
 	const path = __importStar(require$$1$6);
-	const semver = __importStar(requireSemver$1());
+	const semver = __importStar(requireSemver$2());
 	const util = __importStar(require$$0$8);
-	const constants_1 = requireConstants$7();
+	const constants_1 = requireConstants$8();
 	const versionSalt = '1.0';
 	// From https://github.com/actions/toolkit/blob/main/packages/tool-cache/src/tool-cache.ts#L23
 	function createTempDirectory() {
@@ -35043,11 +32111,11 @@ function requireEnv () {
 }
 
 var debug;
-var hasRequiredDebug;
+var hasRequiredDebug$1;
 
-function requireDebug () {
-	if (hasRequiredDebug) return debug;
-	hasRequiredDebug = 1;
+function requireDebug$1 () {
+	if (hasRequiredDebug$1) return debug;
+	hasRequiredDebug$1 = 1;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -35277,7 +32345,7 @@ function requireLogger$1 () {
 	  setLogLevel: () => setLogLevel
 	});
 	logger$1 = __toCommonJS(logger_exports);
-	var import_debug = __toESM(requireDebug());
+	var import_debug = __toESM(requireDebug$1());
 	var import_env = requireEnv();
 	const TYPESPEC_RUNTIME_LOG_LEVELS = ["verbose", "info", "warning", "error"];
 	const levelMap = {
@@ -36796,12 +33864,12 @@ function requireUserAgentPlatform$1 () {
 	return userAgentPlatform$1;
 }
 
-var constants$6;
-var hasRequiredConstants$6;
+var constants$7;
+var hasRequiredConstants$7;
 
-function requireConstants$6 () {
-	if (hasRequiredConstants$6) return constants$6;
-	hasRequiredConstants$6 = 1;
+function requireConstants$7 () {
+	if (hasRequiredConstants$7) return constants$7;
+	hasRequiredConstants$7 = 1;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -36824,11 +33892,11 @@ function requireConstants$6 () {
 	  DEFAULT_RETRY_POLICY_COUNT: () => DEFAULT_RETRY_POLICY_COUNT,
 	  SDK_VERSION: () => SDK_VERSION
 	});
-	constants$6 = __toCommonJS(constants_exports);
+	constants$7 = __toCommonJS(constants_exports);
 	const SDK_VERSION = "0.3.9";
 	const DEFAULT_RETRY_POLICY_COUNT = 3;
 	
-	return constants$6;
+	return constants$7;
 }
 
 var userAgent$4;
@@ -36862,7 +33930,7 @@ function requireUserAgent$3 () {
 	});
 	userAgent$4 = __toCommonJS(userAgent_exports);
 	var import_userAgent = requireUserAgentPlatform$1();
-	var import_constants = requireConstants$6();
+	var import_constants = requireConstants$7();
 	function getUserAgentString(telemetryInfo) {
 	  const parts = [];
 	  for (const [key, value] of telemetryInfo) {
@@ -37263,7 +34331,7 @@ function requireRetryPolicy$1 () {
 	var import_restError = requireRestError$2();
 	var import_AbortError = requireAbortError$1();
 	var import_logger = requireLogger$1();
-	var import_constants = requireConstants$6();
+	var import_constants = requireConstants$7();
 	const retryPolicyLogger = (0, import_logger.createClientLogger)("ts-http-runtime retryPolicy");
 	const retryPolicyName = "retryPolicy";
 	function retryPolicy(strategies, options = { maxRetries: import_constants.DEFAULT_RETRY_POLICY_COUNT }) {
@@ -37394,7 +34462,7 @@ function requireDefaultRetryPolicy$1 () {
 	var import_exponentialRetryStrategy = requireExponentialRetryStrategy();
 	var import_throttlingRetryStrategy = requireThrottlingRetryStrategy();
 	var import_retryPolicy = requireRetryPolicy$1();
-	var import_constants = requireConstants$6();
+	var import_constants = requireConstants$7();
 	const defaultRetryPolicyName = "defaultRetryPolicy";
 	function defaultRetryPolicy(options = {}) {
 	  return {
@@ -37658,7 +34726,7 @@ var dist$3 = {};
 
 var src$2 = {exports: {}};
 
-var browser = {exports: {}};
+var browser$1 = {exports: {}};
 
 /**
  * Helpers.
@@ -38133,11 +35201,11 @@ function requireCommon () {
 
 /* eslint-env browser */
 
-var hasRequiredBrowser;
+var hasRequiredBrowser$1;
 
-function requireBrowser () {
-	if (hasRequiredBrowser) return browser.exports;
-	hasRequiredBrowser = 1;
+function requireBrowser$1 () {
+	if (hasRequiredBrowser$1) return browser$1.exports;
+	hasRequiredBrowser$1 = 1;
 	(function (module, exports) {
 		/**
 		 * This is the web browser implementation of `debug()`.
@@ -38409,169 +35477,43 @@ function requireBrowser () {
 				return '[UnexpectedJSONParseError]: ' + error.message;
 			}
 		}; 
-	} (browser, browser.exports));
-	return browser.exports;
+	} (browser$1, browser$1.exports));
+	return browser$1.exports;
 }
 
 var node$1 = {exports: {}};
 
-var hasFlag;
-var hasRequiredHasFlag;
+/* eslint-env browser */
 
-function requireHasFlag () {
-	if (hasRequiredHasFlag) return hasFlag;
-	hasRequiredHasFlag = 1;
+var browser;
+var hasRequiredBrowser;
 
-	hasFlag = (flag, argv = process.argv) => {
-		const prefix = flag.startsWith('-') ? '' : (flag.length === 1 ? '-' : '--');
-		const position = argv.indexOf(prefix + flag);
-		const terminatorPosition = argv.indexOf('--');
-		return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
+function requireBrowser () {
+	if (hasRequiredBrowser) return browser;
+	hasRequiredBrowser = 1;
+
+	function getChromeVersion() {
+		const matches = /(Chrome|Chromium)\/(?<chromeVersion>\d+)\./.exec(navigator.userAgent);
+
+		if (!matches) {
+			return;
+		}
+
+		return Number.parseInt(matches.groups.chromeVersion, 10);
+	}
+
+	const colorSupport = getChromeVersion() >= 69 ? {
+		level: 1,
+		hasBasic: true,
+		has256: false,
+		has16m: false
+	} : false;
+
+	browser = {
+		stdout: colorSupport,
+		stderr: colorSupport
 	};
-	return hasFlag;
-}
-
-var supportsColor_1;
-var hasRequiredSupportsColor;
-
-function requireSupportsColor () {
-	if (hasRequiredSupportsColor) return supportsColor_1;
-	hasRequiredSupportsColor = 1;
-	const os = require$$0$5;
-	const tty = require$$1$7;
-	const hasFlag = requireHasFlag();
-
-	const {env} = process;
-
-	let forceColor;
-	if (hasFlag('no-color') ||
-		hasFlag('no-colors') ||
-		hasFlag('color=false') ||
-		hasFlag('color=never')) {
-		forceColor = 0;
-	} else if (hasFlag('color') ||
-		hasFlag('colors') ||
-		hasFlag('color=true') ||
-		hasFlag('color=always')) {
-		forceColor = 1;
-	}
-
-	if ('FORCE_COLOR' in env) {
-		if (env.FORCE_COLOR === 'true') {
-			forceColor = 1;
-		} else if (env.FORCE_COLOR === 'false') {
-			forceColor = 0;
-		} else {
-			forceColor = env.FORCE_COLOR.length === 0 ? 1 : Math.min(parseInt(env.FORCE_COLOR, 10), 3);
-		}
-	}
-
-	function translateLevel(level) {
-		if (level === 0) {
-			return false;
-		}
-
-		return {
-			level,
-			hasBasic: true,
-			has256: level >= 2,
-			has16m: level >= 3
-		};
-	}
-
-	function supportsColor(haveStream, streamIsTTY) {
-		if (forceColor === 0) {
-			return 0;
-		}
-
-		if (hasFlag('color=16m') ||
-			hasFlag('color=full') ||
-			hasFlag('color=truecolor')) {
-			return 3;
-		}
-
-		if (hasFlag('color=256')) {
-			return 2;
-		}
-
-		if (haveStream && !streamIsTTY && forceColor === undefined) {
-			return 0;
-		}
-
-		const min = forceColor || 0;
-
-		if (env.TERM === 'dumb') {
-			return min;
-		}
-
-		if (process.platform === 'win32') {
-			// Windows 10 build 10586 is the first Windows release that supports 256 colors.
-			// Windows 10 build 14931 is the first release that supports 16m/TrueColor.
-			const osRelease = os.release().split('.');
-			if (
-				Number(osRelease[0]) >= 10 &&
-				Number(osRelease[2]) >= 10586
-			) {
-				return Number(osRelease[2]) >= 14931 ? 3 : 2;
-			}
-
-			return 1;
-		}
-
-		if ('CI' in env) {
-			if (['TRAVIS', 'CIRCLECI', 'APPVEYOR', 'GITLAB_CI', 'GITHUB_ACTIONS', 'BUILDKITE'].some(sign => sign in env) || env.CI_NAME === 'codeship') {
-				return 1;
-			}
-
-			return min;
-		}
-
-		if ('TEAMCITY_VERSION' in env) {
-			return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
-		}
-
-		if (env.COLORTERM === 'truecolor') {
-			return 3;
-		}
-
-		if ('TERM_PROGRAM' in env) {
-			const version = parseInt((env.TERM_PROGRAM_VERSION || '').split('.')[0], 10);
-
-			switch (env.TERM_PROGRAM) {
-				case 'iTerm.app':
-					return version >= 3 ? 3 : 2;
-				case 'Apple_Terminal':
-					return 2;
-				// No default
-			}
-		}
-
-		if (/-256(color)?$/i.test(env.TERM)) {
-			return 2;
-		}
-
-		if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
-			return 1;
-		}
-
-		if ('COLORTERM' in env) {
-			return 1;
-		}
-
-		return min;
-	}
-
-	function getSupportLevel(stream) {
-		const level = supportsColor(stream, stream && stream.isTTY);
-		return translateLevel(level);
-	}
-
-	supportsColor_1 = {
-		supportsColor: getSupportLevel,
-		stdout: translateLevel(supportsColor(true, tty.isatty(1))),
-		stderr: translateLevel(supportsColor(true, tty.isatty(2)))
-	};
-	return supportsColor_1;
+	return browser;
 }
 
 /**
@@ -38584,7 +35526,7 @@ function requireNode$1 () {
 	if (hasRequiredNode$1) return node$1.exports;
 	hasRequiredNode$1 = 1;
 	(function (module, exports) {
-		const tty = require$$1$7;
+		const tty = require$$0$f;
 		const util = require$$0$8;
 
 		/**
@@ -38611,7 +35553,7 @@ function requireNode$1 () {
 		try {
 			// Optional dependency (as in, doesn't need to be installed, NOT like optionalDependencies in package.json)
 			// eslint-disable-next-line import/no-extraneous-dependencies
-			const supportsColor = requireSupportsColor();
+			const supportsColor = requireBrowser();
 
 			if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
 				exports.colors = [
@@ -38858,7 +35800,7 @@ function requireSrc$1 () {
 	if (hasRequiredSrc$1) return src$2.exports;
 	hasRequiredSrc$1 = 1;
 	if (typeof process === 'undefined' || process.type === 'renderer' || process.browser === true || process.__nwjs) {
-		src$2.exports = requireBrowser();
+		src$2.exports = requireBrowser$1();
 	} else {
 		src$2.exports = requireNode$1();
 	}
@@ -41844,7 +38786,7 @@ function requireExponentialRetryPolicy$1 () {
 	exponentialRetryPolicy_1$1 = __toCommonJS(exponentialRetryPolicy_exports);
 	var import_exponentialRetryStrategy = requireExponentialRetryStrategy();
 	var import_retryPolicy = requireRetryPolicy$1();
-	var import_constants = requireConstants$6();
+	var import_constants = requireConstants$7();
 	const exponentialRetryPolicyName = "exponentialRetryPolicy";
 	function exponentialRetryPolicy(options = {}) {
 	  return (0, import_retryPolicy.retryPolicy)(
@@ -41894,7 +38836,7 @@ function requireSystemErrorRetryPolicy$1 () {
 	systemErrorRetryPolicy_1$1 = __toCommonJS(systemErrorRetryPolicy_exports);
 	var import_exponentialRetryStrategy = requireExponentialRetryStrategy();
 	var import_retryPolicy = requireRetryPolicy$1();
-	var import_constants = requireConstants$6();
+	var import_constants = requireConstants$7();
 	const systemErrorRetryPolicyName = "systemErrorRetryPolicy";
 	function systemErrorRetryPolicy(options = {}) {
 	  return {
@@ -41947,7 +38889,7 @@ function requireThrottlingRetryPolicy$1 () {
 	throttlingRetryPolicy_1$1 = __toCommonJS(throttlingRetryPolicy_exports);
 	var import_throttlingRetryStrategy = requireThrottlingRetryStrategy();
 	var import_retryPolicy = requireRetryPolicy$1();
-	var import_constants = requireConstants$6();
+	var import_constants = requireConstants$7();
 	const throttlingRetryPolicyName = "throttlingRetryPolicy";
 	function throttlingRetryPolicy(options = {}) {
 	  return {
@@ -42174,12 +39116,12 @@ function requireUserAgentPlatform () {
 	return userAgentPlatform;
 }
 
-var constants$5;
-var hasRequiredConstants$5;
+var constants$6;
+var hasRequiredConstants$6;
 
-function requireConstants$5 () {
-	if (hasRequiredConstants$5) return constants$5;
-	hasRequiredConstants$5 = 1;
+function requireConstants$6 () {
+	if (hasRequiredConstants$6) return constants$6;
+	hasRequiredConstants$6 = 1;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -42202,11 +39144,11 @@ function requireConstants$5 () {
 	  DEFAULT_RETRY_POLICY_COUNT: () => DEFAULT_RETRY_POLICY_COUNT,
 	  SDK_VERSION: () => SDK_VERSION
 	});
-	constants$5 = __toCommonJS(constants_exports);
+	constants$6 = __toCommonJS(constants_exports);
 	const SDK_VERSION = "1.25.0";
 	const DEFAULT_RETRY_POLICY_COUNT = 3;
 	
-	return constants$5;
+	return constants$6;
 }
 
 var userAgent$3;
@@ -42239,7 +39181,7 @@ function requireUserAgent$2 () {
 	});
 	userAgent$3 = __toCommonJS(userAgent_exports);
 	var import_userAgent = requireUserAgentPlatform();
-	var import_constants = requireConstants$5();
+	var import_constants = requireConstants$6();
 	function getUserAgentString(telemetryInfo) {
 	  const parts = [];
 	  for (const [key, value] of telemetryInfo) {
@@ -43671,7 +40613,7 @@ function requireTracingPolicy () {
 	});
 	tracingPolicy_1 = __toCommonJS(tracingPolicy_exports);
 	var import_core_tracing = /*@__PURE__*/ requireCommonjs$d();
-	var import_constants = requireConstants$5();
+	var import_constants = requireConstants$6();
 	var import_userAgent = requireUserAgent$2();
 	var import_log = requireLog$3();
 	var import_core_util = /*@__PURE__*/ requireCommonjs$e();
@@ -44235,7 +41177,7 @@ function requireRetryPolicy () {
 	});
 	retryPolicy_1 = __toCommonJS(retryPolicy_exports);
 	var import_logger = /*@__PURE__*/ requireCommonjs$g();
-	var import_constants = requireConstants$5();
+	var import_constants = requireConstants$6();
 	var import_policies = /*@__PURE__*/ requireInternal$1();
 	const retryPolicyLogger = (0, import_logger.createClientLogger)("core-rest-pipeline retryPolicy");
 	function retryPolicy(strategies, options = { maxRetries: import_constants.DEFAULT_RETRY_POLICY_COUNT }) {
@@ -53204,12 +50146,12 @@ function requireAnonymousCredential () {
 	return AnonymousCredential_1;
 }
 
-var constants$4;
-var hasRequiredConstants$4;
+var constants$5;
+var hasRequiredConstants$5;
 
-function requireConstants$4 () {
-	if (hasRequiredConstants$4) return constants$4;
-	hasRequiredConstants$4 = 1;
+function requireConstants$5 () {
+	if (hasRequiredConstants$5) return constants$5;
+	hasRequiredConstants$5 = 1;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -53235,7 +50177,7 @@ function requireConstants$4 () {
 	  SDK_VERSION: () => SDK_VERSION,
 	  URLConstants: () => URLConstants
 	});
-	constants$4 = __toCommonJS(constants_exports);
+	constants$5 = __toCommonJS(constants_exports);
 	const SDK_VERSION = "12.5.0";
 	const URLConstants = {
 	  Parameters: {
@@ -53296,7 +50238,7 @@ function requireConstants$4 () {
 	  "11104"
 	];
 	
-	return constants$4;
+	return constants$5;
 }
 
 var utils_common$2;
@@ -53353,7 +50295,7 @@ function requireUtils_common$2 () {
 	utils_common$2 = __toCommonJS(utils_common_exports);
 	var import_core_rest_pipeline = /*@__PURE__*/ requireCommonjs$c();
 	var import_core_util = /*@__PURE__*/ requireCommonjs$e();
-	var import_constants = requireConstants$4();
+	var import_constants = requireConstants$5();
 	function escapeURLPath(url) {
 	  const urlParsed = new URL(url);
 	  let path = urlParsed.pathname;
@@ -54143,7 +51085,7 @@ function requireStorageSharedKeyCredentialPolicy () {
 	  StorageSharedKeyCredentialPolicy: () => StorageSharedKeyCredentialPolicy
 	});
 	StorageSharedKeyCredentialPolicy_1 = __toCommonJS(StorageSharedKeyCredentialPolicy_exports);
-	var import_constants = requireConstants$4();
+	var import_constants = requireConstants$5();
 	var import_utils_common = requireUtils_common$2();
 	var import_CredentialPolicy = requireCredentialPolicy();
 	var import_SharedKeyComparator = requireSharedKeyComparator();
@@ -54450,7 +51392,7 @@ function requireStorageRetryPolicy () {
 	StorageRetryPolicy_1 = __toCommonJS(StorageRetryPolicy_exports);
 	var import_abort_controller = /*@__PURE__*/ requireCommonjs$f();
 	var import_RequestPolicy = requireRequestPolicy();
-	var import_constants = requireConstants$4();
+	var import_constants = requireConstants$5();
 	var import_utils_common = requireUtils_common$2();
 	var import_log = requireLog();
 	var import_StorageRetryPolicyType = requireStorageRetryPolicyType();
@@ -54771,7 +51713,7 @@ function requireStorageCorrectContentLengthPolicy () {
 	  storageCorrectContentLengthPolicyName: () => storageCorrectContentLengthPolicyName
 	});
 	StorageCorrectContentLengthPolicy = __toCommonJS(StorageCorrectContentLengthPolicy_exports);
-	var import_constants = requireConstants$4();
+	var import_constants = requireConstants$5();
 	const storageCorrectContentLengthPolicyName = "StorageCorrectContentLengthPolicy";
 	function storageCorrectContentLengthPolicy() {
 	  function correctContentLength(request) {
@@ -54824,7 +51766,7 @@ function requireStorageRetryPolicyV2 () {
 	var import_core_rest_pipeline = /*@__PURE__*/ requireCommonjs$c();
 	var import_core_util = /*@__PURE__*/ requireCommonjs$e();
 	var import_StorageRetryPolicyFactory = requireStorageRetryPolicyFactory();
-	var import_constants = requireConstants$4();
+	var import_constants = requireConstants$5();
 	var import_utils_common = requireUtils_common$2();
 	var import_log = requireLog();
 	const storageRetryPolicyName = "storageRetryPolicy";
@@ -55014,7 +51956,7 @@ function requireStorageSharedKeyCredentialPolicyV2 () {
 	});
 	StorageSharedKeyCredentialPolicyV2 = __toCommonJS(StorageSharedKeyCredentialPolicyV2_exports);
 	var import_node_crypto = __require$6();
-	var import_constants = requireConstants$4();
+	var import_constants = requireConstants$5();
 	var import_utils_common = requireUtils_common$2();
 	var import_SharedKeyComparator = requireSharedKeyComparator();
 	const storageSharedKeyCredentialPolicyName = "storageSharedKeyCredentialPolicy";
@@ -55371,12 +52313,12 @@ function requireCommonjs$7 () {
 	return commonjs$6.exports;
 }
 
-var constants$3;
-var hasRequiredConstants$3;
+var constants$4;
+var hasRequiredConstants$4;
 
-function requireConstants$3 () {
-	if (hasRequiredConstants$3) return constants$3;
-	hasRequiredConstants$3 = 1;
+function requireConstants$4 () {
+	if (hasRequiredConstants$4) return constants$4;
+	hasRequiredConstants$4 = 1;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -55424,7 +52366,7 @@ function requireConstants$3 () {
 	  StorageOAuthScopes: () => StorageOAuthScopes,
 	  URLConstants: () => URLConstants
 	});
-	constants$3 = __toCommonJS(constants_exports);
+	constants$4 = __toCommonJS(constants_exports);
 	const SDK_VERSION = "12.33.0";
 	const SERVICE_VERSION = "2026-06-06";
 	const BLOCK_BLOB_MAX_UPLOAD_BLOB_BYTES = 256 * 1024 * 1024;
@@ -55644,7 +52586,7 @@ function requireConstants$3 () {
 	  "11104"
 	];
 	
-	return constants$3;
+	return constants$4;
 }
 
 var Pipeline_1;
@@ -55687,7 +52629,7 @@ function requirePipeline$1 () {
 	var import_core_auth = /*@__PURE__*/ requireCommonjs$b();
 	var import_log = requireLog$1();
 	var import_storage_common = /*@__PURE__*/ requireCommonjs$7();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	function isPipelineLike(pipeline) {
 	  if (!pipeline || typeof pipeline !== "object") {
 	    return false;
@@ -70641,7 +67583,7 @@ function requireUtils_common$1 () {
 	utils_common$1 = __toCommonJS(utils_common_exports);
 	var import_core_rest_pipeline = /*@__PURE__*/ requireCommonjs$c();
 	var import_core_util = /*@__PURE__*/ requireCommonjs$e();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_storage_common = /*@__PURE__*/ requireCommonjs$7();
 	const accountNameSuffixes = [
 	  "-secondary-ipv6",
@@ -71296,7 +68238,7 @@ function requireTracing () {
 	});
 	tracing = __toCommonJS(tracing_exports);
 	var import_core_tracing = /*@__PURE__*/ requireCommonjs$d();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	const tracingClient = (0, import_core_tracing.createTracingClient)({
 	  packageName: "@azure/storage-blob",
 	  packageVersion: import_constants.SDK_VERSION,
@@ -72277,7 +69219,7 @@ function requireBlobSASSignatureValues () {
 	var import_storage_common = /*@__PURE__*/ requireCommonjs$7();
 	var import_SasIPRange = requireSasIPRange();
 	var import_SASQueryParameters = requireSASQueryParameters();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_utils_common = requireUtils_common$1();
 	var import_storage_common2 = /*@__PURE__*/ requireCommonjs$7();
 	function generateBlobSASQueryParameters(blobSASSignatureValues, sharedKeyCredentialOrUserDelegationKey, accountName) {
@@ -73277,7 +70219,7 @@ function requireBlobLeaseClient () {
 	});
 	BlobLeaseClient_1 = __toCommonJS(BlobLeaseClient_exports);
 	var import_core_util = /*@__PURE__*/ requireCommonjs$e();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_tracing = requireTracing();
 	var import_utils_common = requireUtils_common$1();
 	class BlobLeaseClient {
@@ -75408,7 +72350,7 @@ function requireModels () {
 	  toAccessTier: () => toAccessTier
 	});
 	models = __toCommonJS(models_exports);
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var BlockBlobTier = /* @__PURE__ */ ((BlockBlobTier2) => {
 	  BlockBlobTier2["Hot"] = "Hot";
 	  BlockBlobTier2["Cool"] = "Cool";
@@ -75539,27 +72481,27 @@ function requireLogger () {
 	return logger;
 }
 
-var constants$2 = {};
+var constants$3 = {};
 
-var hasRequiredConstants$2;
+var hasRequiredConstants$3;
 
-function requireConstants$2 () {
-	if (hasRequiredConstants$2) return constants$2;
-	hasRequiredConstants$2 = 1;
+function requireConstants$3 () {
+	if (hasRequiredConstants$3) return constants$3;
+	hasRequiredConstants$3 = 1;
 	// Copyright (c) Microsoft Corporation.
 	// Licensed under the MIT license.
-	Object.defineProperty(constants$2, "__esModule", { value: true });
-	constants$2.terminalStates = constants$2.POLL_INTERVAL_IN_MS = void 0;
+	Object.defineProperty(constants$3, "__esModule", { value: true });
+	constants$3.terminalStates = constants$3.POLL_INTERVAL_IN_MS = void 0;
 	/**
 	 * The default time interval to wait before sending the next polling request.
 	 */
-	constants$2.POLL_INTERVAL_IN_MS = 2000;
+	constants$3.POLL_INTERVAL_IN_MS = 2000;
 	/**
 	 * The closed set of terminal states.
 	 */
-	constants$2.terminalStates = ["succeeded", "canceled", "failed"];
+	constants$3.terminalStates = ["succeeded", "canceled", "failed"];
 	
-	return constants$2;
+	return constants$3;
 }
 
 var hasRequiredOperation$2;
@@ -75572,7 +72514,7 @@ function requireOperation$2 () {
 	Object.defineProperty(operation$1, "__esModule", { value: true });
 	operation$1.pollOperation = operation$1.initOperation = operation$1.deserializeState = void 0;
 	const logger_js_1 = requireLogger();
-	const constants_js_1 = requireConstants$2();
+	const constants_js_1 = requireConstants$3();
 	/**
 	 * Deserializes the state
 	 */
@@ -76055,7 +72997,7 @@ function requirePoller$2 () {
 	Object.defineProperty(poller$1, "__esModule", { value: true });
 	poller$1.buildCreatePoller = void 0;
 	const operation_js_1 = requireOperation$2();
-	const constants_js_1 = requireConstants$2();
+	const constants_js_1 = requireConstants$3();
 	const core_util_1 = /*@__PURE__*/ requireCommonjs$e();
 	const createStateProxy = () => ({
 	    /**
@@ -76804,7 +73746,7 @@ function requireLroEngine$1 () {
 	Object.defineProperty(lroEngine, "__esModule", { value: true });
 	lroEngine.LroEngine = void 0;
 	const operation_js_1 = requireOperation();
-	const constants_js_1 = requireConstants$2();
+	const constants_js_1 = requireConstants$3();
 	const poller_js_1 = requirePoller();
 	const operation_js_2 = requireOperation$2();
 	/**
@@ -77033,11 +73975,11 @@ function requireBlobStartCopyFromUrlPoller () {
 }
 
 var Range;
-var hasRequiredRange;
+var hasRequiredRange$1;
 
-function requireRange () {
-	if (hasRequiredRange) return Range;
-	hasRequiredRange = 1;
+function requireRange$1 () {
+	if (hasRequiredRange$1) return Range;
+	hasRequiredRange$1 = 1;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -77265,7 +74207,7 @@ function requireUtils$4 () {
 	utils$4 = __toCommonJS(utils_exports);
 	var import_node_fs = __toESM(__require$4());
 	var import_node_util = __toESM(__require$d());
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	async function streamToBuffer(stream, buffer, offset, end, encoding) {
 	  let pos = 0;
 	  const count = end - offset;
@@ -77409,11 +74351,11 @@ function requireClients () {
 	var import_PageBlobRangeResponse = requirePageBlobRangeResponse();
 	var import_Pipeline = requirePipeline$1();
 	var import_BlobStartCopyFromUrlPoller = requireBlobStartCopyFromUrlPoller();
-	var import_Range = requireRange();
+	var import_Range = requireRange$1();
 	var import_StorageClient = requireStorageClient();
 	var import_Batch = requireBatch();
 	var import_storage_common2 = /*@__PURE__*/ requireCommonjs$7();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_tracing = requireTracing();
 	var import_utils_common = requireUtils_common$1();
 	var import_utils = requireUtils$4();
@@ -80546,7 +77488,7 @@ function requireBatchUtils () {
 	});
 	BatchUtils = __toCommonJS(BatchUtils_exports);
 	var import_utils = requireUtils$4();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	async function getBodyAsText(batchResponse) {
 	  let buffer = Buffer.alloc(import_constants.BATCH_MAX_PAYLOAD_IN_BYTES);
 	  const responseLength = await (0, import_utils.streamToBuffer2)(
@@ -80593,7 +77535,7 @@ function requireBatchResponseParser () {
 	BatchResponseParser_1 = __toCommonJS(BatchResponseParser_exports);
 	var import_core_rest_pipeline = /*@__PURE__*/ requireCommonjs$c();
 	var import_core_http_compat = /*@__PURE__*/ requireCommonjs$9();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_BatchUtils = requireBatchUtils();
 	var import_log = requireLog$1();
 	const HTTP_HEADER_DELIMITER = ": ";
@@ -80828,7 +77770,7 @@ function requireBlobBatch () {
 	var import_Pipeline = requirePipeline$1();
 	var import_utils_common = requireUtils_common$1();
 	var import_core_xml = /*@__PURE__*/ requireCommonjs$8();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_tracing = requireTracing();
 	var import_core_client = /*@__PURE__*/ requireCommonjs$a();
 	class BlobBatch {
@@ -83159,7 +80101,7 @@ function requireAccountSASSignatureValues () {
 	var import_AccountSASServices = requireAccountSASServices();
 	var import_SasIPRange = requireSasIPRange();
 	var import_SASQueryParameters = requireSASQueryParameters();
-	var import_constants = requireConstants$3();
+	var import_constants = requireConstants$4();
 	var import_utils_common = requireUtils_common$1();
 	function generateAccountSASQueryParameters(accountSASSignatureValues, sharedKeyCredential) {
 	  return generateAccountSASQueryParametersInternal(accountSASSignatureValues, sharedKeyCredential).sasQueryParameters;
@@ -84476,7 +81418,7 @@ function requireRequestUtils () {
 	requestUtils.retryHttpClientResponse = requestUtils.retryTypedResponse = requestUtils.retry = requestUtils.isRetryableStatusCode = requestUtils.isServerErrorStatusCode = requestUtils.isSuccessStatusCode = void 0;
 	const core = __importStar(requireCore$1());
 	const http_client_1 = requireLib$2();
-	const constants_1 = requireConstants$7();
+	const constants_1 = requireConstants$8();
 	function isSuccessStatusCode(statusCode) {
 	    if (!statusCode) {
 	        return false;
@@ -84877,7 +81819,7 @@ function requireDownloadUtils () {
 	const stream = __importStar(require$$0$c);
 	const util = __importStar(require$$0$8);
 	const utils = __importStar(requireCacheUtils());
-	const constants_1 = requireConstants$7();
+	const constants_1 = requireConstants$8();
 	const requestUtils_1 = requireRequestUtils();
 	const abort_controller_1 = require$$10;
 	/**
@@ -89363,7 +86305,7 @@ class RpcOutputStreamController {
     }
 }
 
-var __awaiter$4 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$4 = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -89409,7 +86351,7 @@ class UnaryCall {
     }
 }
 
-var __awaiter$3 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$3 = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -89456,7 +86398,7 @@ class ServerStreamingCall {
     }
 }
 
-var __awaiter$2 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$2 = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -89503,7 +86445,7 @@ class ClientStreamingCall {
     }
 }
 
-var __awaiter$1 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$1 = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -89549,7 +86491,7 @@ class DuplexStreamingCall {
     }
 }
 
-var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -90943,7 +87885,7 @@ function requireTar$1 () {
 	const fs_1 = require$$0$7;
 	const path = __importStar(require$$1$6);
 	const utils = __importStar(requireCacheUtils());
-	const constants_1 = requireConstants$7();
+	const constants_1 = requireConstants$8();
 	const IS_WINDOWS = process.platform === 'win32';
 	// Returns tar path and type: BSD or GNU
 	function getTarPath() {
@@ -91708,1661 +88650,6 @@ var toolCache = {};
 
 var manifest$1 = {exports: {}};
 
-var semver = {exports: {}};
-
-var hasRequiredSemver;
-
-function requireSemver () {
-	if (hasRequiredSemver) return semver.exports;
-	hasRequiredSemver = 1;
-	(function (module, exports) {
-		exports = module.exports = SemVer;
-
-		var debug;
-		/* istanbul ignore next */
-		if (typeof process === 'object' &&
-		    process.env &&
-		    process.env.NODE_DEBUG &&
-		    /\bsemver\b/i.test(process.env.NODE_DEBUG)) {
-		  debug = function () {
-		    var args = Array.prototype.slice.call(arguments, 0);
-		    args.unshift('SEMVER');
-		    console.log.apply(console, args);
-		  };
-		} else {
-		  debug = function () {};
-		}
-
-		// Note: this is the semver.org version of the spec that it implements
-		// Not necessarily the package version of this code.
-		exports.SEMVER_SPEC_VERSION = '2.0.0';
-
-		var MAX_LENGTH = 256;
-		var MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER ||
-		  /* istanbul ignore next */ 9007199254740991;
-
-		// Max safe segment length for coercion.
-		var MAX_SAFE_COMPONENT_LENGTH = 16;
-
-		var MAX_SAFE_BUILD_LENGTH = MAX_LENGTH - 6;
-
-		// The actual regexps go on exports.re
-		var re = exports.re = [];
-		var safeRe = exports.safeRe = [];
-		var src = exports.src = [];
-		var t = exports.tokens = {};
-		var R = 0;
-
-		function tok (n) {
-		  t[n] = R++;
-		}
-
-		var LETTERDASHNUMBER = '[a-zA-Z0-9-]';
-
-		// Replace some greedy regex tokens to prevent regex dos issues. These regex are
-		// used internally via the safeRe object since all inputs in this library get
-		// normalized first to trim and collapse all extra whitespace. The original
-		// regexes are exported for userland consumption and lower level usage. A
-		// future breaking change could export the safer regex only with a note that
-		// all input should have extra whitespace removed.
-		var safeRegexReplacements = [
-		  ['\\s', 1],
-		  ['\\d', MAX_LENGTH],
-		  [LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH],
-		];
-
-		function makeSafeRe (value) {
-		  for (var i = 0; i < safeRegexReplacements.length; i++) {
-		    var token = safeRegexReplacements[i][0];
-		    var max = safeRegexReplacements[i][1];
-		    value = value
-		      .split(token + '*').join(token + '{0,' + max + '}')
-		      .split(token + '+').join(token + '{1,' + max + '}');
-		  }
-		  return value
-		}
-
-		// The following Regular Expressions can be used for tokenizing,
-		// validating, and parsing SemVer version strings.
-
-		// ## Numeric Identifier
-		// A single `0`, or a non-zero digit followed by zero or more digits.
-
-		tok('NUMERICIDENTIFIER');
-		src[t.NUMERICIDENTIFIER] = '0|[1-9]\\d*';
-		tok('NUMERICIDENTIFIERLOOSE');
-		src[t.NUMERICIDENTIFIERLOOSE] = '\\d+';
-
-		// ## Non-numeric Identifier
-		// Zero or more digits, followed by a letter or hyphen, and then zero or
-		// more letters, digits, or hyphens.
-
-		tok('NONNUMERICIDENTIFIER');
-		src[t.NONNUMERICIDENTIFIER] = '\\d*[a-zA-Z-]' + LETTERDASHNUMBER + '*';
-
-		// ## Main Version
-		// Three dot-separated numeric identifiers.
-
-		tok('MAINVERSION');
-		src[t.MAINVERSION] = '(' + src[t.NUMERICIDENTIFIER] + ')\\.' +
-		                   '(' + src[t.NUMERICIDENTIFIER] + ')\\.' +
-		                   '(' + src[t.NUMERICIDENTIFIER] + ')';
-
-		tok('MAINVERSIONLOOSE');
-		src[t.MAINVERSIONLOOSE] = '(' + src[t.NUMERICIDENTIFIERLOOSE] + ')\\.' +
-		                        '(' + src[t.NUMERICIDENTIFIERLOOSE] + ')\\.' +
-		                        '(' + src[t.NUMERICIDENTIFIERLOOSE] + ')';
-
-		// ## Pre-release Version Identifier
-		// A numeric identifier, or a non-numeric identifier.
-
-		tok('PRERELEASEIDENTIFIER');
-		src[t.PRERELEASEIDENTIFIER] = '(?:' + src[t.NUMERICIDENTIFIER] +
-		                            '|' + src[t.NONNUMERICIDENTIFIER] + ')';
-
-		tok('PRERELEASEIDENTIFIERLOOSE');
-		src[t.PRERELEASEIDENTIFIERLOOSE] = '(?:' + src[t.NUMERICIDENTIFIERLOOSE] +
-		                                 '|' + src[t.NONNUMERICIDENTIFIER] + ')';
-
-		// ## Pre-release Version
-		// Hyphen, followed by one or more dot-separated pre-release version
-		// identifiers.
-
-		tok('PRERELEASE');
-		src[t.PRERELEASE] = '(?:-(' + src[t.PRERELEASEIDENTIFIER] +
-		                  '(?:\\.' + src[t.PRERELEASEIDENTIFIER] + ')*))';
-
-		tok('PRERELEASELOOSE');
-		src[t.PRERELEASELOOSE] = '(?:-?(' + src[t.PRERELEASEIDENTIFIERLOOSE] +
-		                       '(?:\\.' + src[t.PRERELEASEIDENTIFIERLOOSE] + ')*))';
-
-		// ## Build Metadata Identifier
-		// Any combination of digits, letters, or hyphens.
-
-		tok('BUILDIDENTIFIER');
-		src[t.BUILDIDENTIFIER] = LETTERDASHNUMBER + '+';
-
-		// ## Build Metadata
-		// Plus sign, followed by one or more period-separated build metadata
-		// identifiers.
-
-		tok('BUILD');
-		src[t.BUILD] = '(?:\\+(' + src[t.BUILDIDENTIFIER] +
-		             '(?:\\.' + src[t.BUILDIDENTIFIER] + ')*))';
-
-		// ## Full Version String
-		// A main version, followed optionally by a pre-release version and
-		// build metadata.
-
-		// Note that the only major, minor, patch, and pre-release sections of
-		// the version string are capturing groups.  The build metadata is not a
-		// capturing group, because it should not ever be used in version
-		// comparison.
-
-		tok('FULL');
-		tok('FULLPLAIN');
-		src[t.FULLPLAIN] = 'v?' + src[t.MAINVERSION] +
-		                  src[t.PRERELEASE] + '?' +
-		                  src[t.BUILD] + '?';
-
-		src[t.FULL] = '^' + src[t.FULLPLAIN] + '$';
-
-		// like full, but allows v1.2.3 and =1.2.3, which people do sometimes.
-		// also, 1.0.0alpha1 (prerelease without the hyphen) which is pretty
-		// common in the npm registry.
-		tok('LOOSEPLAIN');
-		src[t.LOOSEPLAIN] = '[v=\\s]*' + src[t.MAINVERSIONLOOSE] +
-		                  src[t.PRERELEASELOOSE] + '?' +
-		                  src[t.BUILD] + '?';
-
-		tok('LOOSE');
-		src[t.LOOSE] = '^' + src[t.LOOSEPLAIN] + '$';
-
-		tok('GTLT');
-		src[t.GTLT] = '((?:<|>)?=?)';
-
-		// Something like "2.*" or "1.2.x".
-		// Note that "x.x" is a valid xRange identifer, meaning "any version"
-		// Only the first item is strictly required.
-		tok('XRANGEIDENTIFIERLOOSE');
-		src[t.XRANGEIDENTIFIERLOOSE] = src[t.NUMERICIDENTIFIERLOOSE] + '|x|X|\\*';
-		tok('XRANGEIDENTIFIER');
-		src[t.XRANGEIDENTIFIER] = src[t.NUMERICIDENTIFIER] + '|x|X|\\*';
-
-		tok('XRANGEPLAIN');
-		src[t.XRANGEPLAIN] = '[v=\\s]*(' + src[t.XRANGEIDENTIFIER] + ')' +
-		                   '(?:\\.(' + src[t.XRANGEIDENTIFIER] + ')' +
-		                   '(?:\\.(' + src[t.XRANGEIDENTIFIER] + ')' +
-		                   '(?:' + src[t.PRERELEASE] + ')?' +
-		                   src[t.BUILD] + '?' +
-		                   ')?)?';
-
-		tok('XRANGEPLAINLOOSE');
-		src[t.XRANGEPLAINLOOSE] = '[v=\\s]*(' + src[t.XRANGEIDENTIFIERLOOSE] + ')' +
-		                        '(?:\\.(' + src[t.XRANGEIDENTIFIERLOOSE] + ')' +
-		                        '(?:\\.(' + src[t.XRANGEIDENTIFIERLOOSE] + ')' +
-		                        '(?:' + src[t.PRERELEASELOOSE] + ')?' +
-		                        src[t.BUILD] + '?' +
-		                        ')?)?';
-
-		tok('XRANGE');
-		src[t.XRANGE] = '^' + src[t.GTLT] + '\\s*' + src[t.XRANGEPLAIN] + '$';
-		tok('XRANGELOOSE');
-		src[t.XRANGELOOSE] = '^' + src[t.GTLT] + '\\s*' + src[t.XRANGEPLAINLOOSE] + '$';
-
-		// Coercion.
-		// Extract anything that could conceivably be a part of a valid semver
-		tok('COERCE');
-		src[t.COERCE] = '(^|[^\\d])' +
-		              '(\\d{1,' + MAX_SAFE_COMPONENT_LENGTH + '})' +
-		              '(?:\\.(\\d{1,' + MAX_SAFE_COMPONENT_LENGTH + '}))?' +
-		              '(?:\\.(\\d{1,' + MAX_SAFE_COMPONENT_LENGTH + '}))?' +
-		              '(?:$|[^\\d])';
-		tok('COERCERTL');
-		re[t.COERCERTL] = new RegExp(src[t.COERCE], 'g');
-		safeRe[t.COERCERTL] = new RegExp(makeSafeRe(src[t.COERCE]), 'g');
-
-		// Tilde ranges.
-		// Meaning is "reasonably at or greater than"
-		tok('LONETILDE');
-		src[t.LONETILDE] = '(?:~>?)';
-
-		tok('TILDETRIM');
-		src[t.TILDETRIM] = '(\\s*)' + src[t.LONETILDE] + '\\s+';
-		re[t.TILDETRIM] = new RegExp(src[t.TILDETRIM], 'g');
-		safeRe[t.TILDETRIM] = new RegExp(makeSafeRe(src[t.TILDETRIM]), 'g');
-		var tildeTrimReplace = '$1~';
-
-		tok('TILDE');
-		src[t.TILDE] = '^' + src[t.LONETILDE] + src[t.XRANGEPLAIN] + '$';
-		tok('TILDELOOSE');
-		src[t.TILDELOOSE] = '^' + src[t.LONETILDE] + src[t.XRANGEPLAINLOOSE] + '$';
-
-		// Caret ranges.
-		// Meaning is "at least and backwards compatible with"
-		tok('LONECARET');
-		src[t.LONECARET] = '(?:\\^)';
-
-		tok('CARETTRIM');
-		src[t.CARETTRIM] = '(\\s*)' + src[t.LONECARET] + '\\s+';
-		re[t.CARETTRIM] = new RegExp(src[t.CARETTRIM], 'g');
-		safeRe[t.CARETTRIM] = new RegExp(makeSafeRe(src[t.CARETTRIM]), 'g');
-		var caretTrimReplace = '$1^';
-
-		tok('CARET');
-		src[t.CARET] = '^' + src[t.LONECARET] + src[t.XRANGEPLAIN] + '$';
-		tok('CARETLOOSE');
-		src[t.CARETLOOSE] = '^' + src[t.LONECARET] + src[t.XRANGEPLAINLOOSE] + '$';
-
-		// A simple gt/lt/eq thing, or just "" to indicate "any version"
-		tok('COMPARATORLOOSE');
-		src[t.COMPARATORLOOSE] = '^' + src[t.GTLT] + '\\s*(' + src[t.LOOSEPLAIN] + ')$|^$';
-		tok('COMPARATOR');
-		src[t.COMPARATOR] = '^' + src[t.GTLT] + '\\s*(' + src[t.FULLPLAIN] + ')$|^$';
-
-		// An expression to strip any whitespace between the gtlt and the thing
-		// it modifies, so that `> 1.2.3` ==> `>1.2.3`
-		tok('COMPARATORTRIM');
-		src[t.COMPARATORTRIM] = '(\\s*)' + src[t.GTLT] +
-		                      '\\s*(' + src[t.LOOSEPLAIN] + '|' + src[t.XRANGEPLAIN] + ')';
-
-		// this one has to use the /g flag
-		re[t.COMPARATORTRIM] = new RegExp(src[t.COMPARATORTRIM], 'g');
-		safeRe[t.COMPARATORTRIM] = new RegExp(makeSafeRe(src[t.COMPARATORTRIM]), 'g');
-		var comparatorTrimReplace = '$1$2$3';
-
-		// Something like `1.2.3 - 1.2.4`
-		// Note that these all use the loose form, because they'll be
-		// checked against either the strict or loose comparator form
-		// later.
-		tok('HYPHENRANGE');
-		src[t.HYPHENRANGE] = '^\\s*(' + src[t.XRANGEPLAIN] + ')' +
-		                   '\\s+-\\s+' +
-		                   '(' + src[t.XRANGEPLAIN] + ')' +
-		                   '\\s*$';
-
-		tok('HYPHENRANGELOOSE');
-		src[t.HYPHENRANGELOOSE] = '^\\s*(' + src[t.XRANGEPLAINLOOSE] + ')' +
-		                        '\\s+-\\s+' +
-		                        '(' + src[t.XRANGEPLAINLOOSE] + ')' +
-		                        '\\s*$';
-
-		// Star ranges basically just allow anything at all.
-		tok('STAR');
-		src[t.STAR] = '(<|>)?=?\\s*\\*';
-
-		// Compile to actual regexp objects.
-		// All are flag-free, unless they were created above with a flag.
-		for (var i = 0; i < R; i++) {
-		  debug(i, src[i]);
-		  if (!re[i]) {
-		    re[i] = new RegExp(src[i]);
-
-		    // Replace all greedy whitespace to prevent regex dos issues. These regex are
-		    // used internally via the safeRe object since all inputs in this library get
-		    // normalized first to trim and collapse all extra whitespace. The original
-		    // regexes are exported for userland consumption and lower level usage. A
-		    // future breaking change could export the safer regex only with a note that
-		    // all input should have extra whitespace removed.
-		    safeRe[i] = new RegExp(makeSafeRe(src[i]));
-		  }
-		}
-
-		exports.parse = parse;
-		function parse (version, options) {
-		  if (!options || typeof options !== 'object') {
-		    options = {
-		      loose: !!options,
-		      includePrerelease: false
-		    };
-		  }
-
-		  if (version instanceof SemVer) {
-		    return version
-		  }
-
-		  if (typeof version !== 'string') {
-		    return null
-		  }
-
-		  if (version.length > MAX_LENGTH) {
-		    return null
-		  }
-
-		  var r = options.loose ? safeRe[t.LOOSE] : safeRe[t.FULL];
-		  if (!r.test(version)) {
-		    return null
-		  }
-
-		  try {
-		    return new SemVer(version, options)
-		  } catch (er) {
-		    return null
-		  }
-		}
-
-		exports.valid = valid;
-		function valid (version, options) {
-		  var v = parse(version, options);
-		  return v ? v.version : null
-		}
-
-		exports.clean = clean;
-		function clean (version, options) {
-		  var s = parse(version.trim().replace(/^[=v]+/, ''), options);
-		  return s ? s.version : null
-		}
-
-		exports.SemVer = SemVer;
-
-		function SemVer (version, options) {
-		  if (!options || typeof options !== 'object') {
-		    options = {
-		      loose: !!options,
-		      includePrerelease: false
-		    };
-		  }
-		  if (version instanceof SemVer) {
-		    if (version.loose === options.loose) {
-		      return version
-		    } else {
-		      version = version.version;
-		    }
-		  } else if (typeof version !== 'string') {
-		    throw new TypeError('Invalid Version: ' + version)
-		  }
-
-		  if (version.length > MAX_LENGTH) {
-		    throw new TypeError('version is longer than ' + MAX_LENGTH + ' characters')
-		  }
-
-		  if (!(this instanceof SemVer)) {
-		    return new SemVer(version, options)
-		  }
-
-		  debug('SemVer', version, options);
-		  this.options = options;
-		  this.loose = !!options.loose;
-
-		  var m = version.trim().match(options.loose ? safeRe[t.LOOSE] : safeRe[t.FULL]);
-
-		  if (!m) {
-		    throw new TypeError('Invalid Version: ' + version)
-		  }
-
-		  this.raw = version;
-
-		  // these are actually numbers
-		  this.major = +m[1];
-		  this.minor = +m[2];
-		  this.patch = +m[3];
-
-		  if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
-		    throw new TypeError('Invalid major version')
-		  }
-
-		  if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
-		    throw new TypeError('Invalid minor version')
-		  }
-
-		  if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
-		    throw new TypeError('Invalid patch version')
-		  }
-
-		  // numberify any prerelease numeric ids
-		  if (!m[4]) {
-		    this.prerelease = [];
-		  } else {
-		    this.prerelease = m[4].split('.').map(function (id) {
-		      if (/^[0-9]+$/.test(id)) {
-		        var num = +id;
-		        if (num >= 0 && num < MAX_SAFE_INTEGER) {
-		          return num
-		        }
-		      }
-		      return id
-		    });
-		  }
-
-		  this.build = m[5] ? m[5].split('.') : [];
-		  this.format();
-		}
-
-		SemVer.prototype.format = function () {
-		  this.version = this.major + '.' + this.minor + '.' + this.patch;
-		  if (this.prerelease.length) {
-		    this.version += '-' + this.prerelease.join('.');
-		  }
-		  return this.version
-		};
-
-		SemVer.prototype.toString = function () {
-		  return this.version
-		};
-
-		SemVer.prototype.compare = function (other) {
-		  debug('SemVer.compare', this.version, this.options, other);
-		  if (!(other instanceof SemVer)) {
-		    other = new SemVer(other, this.options);
-		  }
-
-		  return this.compareMain(other) || this.comparePre(other)
-		};
-
-		SemVer.prototype.compareMain = function (other) {
-		  if (!(other instanceof SemVer)) {
-		    other = new SemVer(other, this.options);
-		  }
-
-		  return compareIdentifiers(this.major, other.major) ||
-		         compareIdentifiers(this.minor, other.minor) ||
-		         compareIdentifiers(this.patch, other.patch)
-		};
-
-		SemVer.prototype.comparePre = function (other) {
-		  if (!(other instanceof SemVer)) {
-		    other = new SemVer(other, this.options);
-		  }
-
-		  // NOT having a prerelease is > having one
-		  if (this.prerelease.length && !other.prerelease.length) {
-		    return -1
-		  } else if (!this.prerelease.length && other.prerelease.length) {
-		    return 1
-		  } else if (!this.prerelease.length && !other.prerelease.length) {
-		    return 0
-		  }
-
-		  var i = 0;
-		  do {
-		    var a = this.prerelease[i];
-		    var b = other.prerelease[i];
-		    debug('prerelease compare', i, a, b);
-		    if (a === undefined && b === undefined) {
-		      return 0
-		    } else if (b === undefined) {
-		      return 1
-		    } else if (a === undefined) {
-		      return -1
-		    } else if (a === b) {
-		      continue
-		    } else {
-		      return compareIdentifiers(a, b)
-		    }
-		  } while (++i)
-		};
-
-		SemVer.prototype.compareBuild = function (other) {
-		  if (!(other instanceof SemVer)) {
-		    other = new SemVer(other, this.options);
-		  }
-
-		  var i = 0;
-		  do {
-		    var a = this.build[i];
-		    var b = other.build[i];
-		    debug('prerelease compare', i, a, b);
-		    if (a === undefined && b === undefined) {
-		      return 0
-		    } else if (b === undefined) {
-		      return 1
-		    } else if (a === undefined) {
-		      return -1
-		    } else if (a === b) {
-		      continue
-		    } else {
-		      return compareIdentifiers(a, b)
-		    }
-		  } while (++i)
-		};
-
-		// preminor will bump the version up to the next minor release, and immediately
-		// down to pre-release. premajor and prepatch work the same way.
-		SemVer.prototype.inc = function (release, identifier) {
-		  switch (release) {
-		    case 'premajor':
-		      this.prerelease.length = 0;
-		      this.patch = 0;
-		      this.minor = 0;
-		      this.major++;
-		      this.inc('pre', identifier);
-		      break
-		    case 'preminor':
-		      this.prerelease.length = 0;
-		      this.patch = 0;
-		      this.minor++;
-		      this.inc('pre', identifier);
-		      break
-		    case 'prepatch':
-		      // If this is already a prerelease, it will bump to the next version
-		      // drop any prereleases that might already exist, since they are not
-		      // relevant at this point.
-		      this.prerelease.length = 0;
-		      this.inc('patch', identifier);
-		      this.inc('pre', identifier);
-		      break
-		    // If the input is a non-prerelease version, this acts the same as
-		    // prepatch.
-		    case 'prerelease':
-		      if (this.prerelease.length === 0) {
-		        this.inc('patch', identifier);
-		      }
-		      this.inc('pre', identifier);
-		      break
-
-		    case 'major':
-		      // If this is a pre-major version, bump up to the same major version.
-		      // Otherwise increment major.
-		      // 1.0.0-5 bumps to 1.0.0
-		      // 1.1.0 bumps to 2.0.0
-		      if (this.minor !== 0 ||
-		          this.patch !== 0 ||
-		          this.prerelease.length === 0) {
-		        this.major++;
-		      }
-		      this.minor = 0;
-		      this.patch = 0;
-		      this.prerelease = [];
-		      break
-		    case 'minor':
-		      // If this is a pre-minor version, bump up to the same minor version.
-		      // Otherwise increment minor.
-		      // 1.2.0-5 bumps to 1.2.0
-		      // 1.2.1 bumps to 1.3.0
-		      if (this.patch !== 0 || this.prerelease.length === 0) {
-		        this.minor++;
-		      }
-		      this.patch = 0;
-		      this.prerelease = [];
-		      break
-		    case 'patch':
-		      // If this is not a pre-release version, it will increment the patch.
-		      // If it is a pre-release it will bump up to the same patch version.
-		      // 1.2.0-5 patches to 1.2.0
-		      // 1.2.0 patches to 1.2.1
-		      if (this.prerelease.length === 0) {
-		        this.patch++;
-		      }
-		      this.prerelease = [];
-		      break
-		    // This probably shouldn't be used publicly.
-		    // 1.0.0 "pre" would become 1.0.0-0 which is the wrong direction.
-		    case 'pre':
-		      if (this.prerelease.length === 0) {
-		        this.prerelease = [0];
-		      } else {
-		        var i = this.prerelease.length;
-		        while (--i >= 0) {
-		          if (typeof this.prerelease[i] === 'number') {
-		            this.prerelease[i]++;
-		            i = -2;
-		          }
-		        }
-		        if (i === -1) {
-		          // didn't increment anything
-		          this.prerelease.push(0);
-		        }
-		      }
-		      if (identifier) {
-		        // 1.2.0-beta.1 bumps to 1.2.0-beta.2,
-		        // 1.2.0-beta.fooblz or 1.2.0-beta bumps to 1.2.0-beta.0
-		        if (this.prerelease[0] === identifier) {
-		          if (isNaN(this.prerelease[1])) {
-		            this.prerelease = [identifier, 0];
-		          }
-		        } else {
-		          this.prerelease = [identifier, 0];
-		        }
-		      }
-		      break
-
-		    default:
-		      throw new Error('invalid increment argument: ' + release)
-		  }
-		  this.format();
-		  this.raw = this.version;
-		  return this
-		};
-
-		exports.inc = inc;
-		function inc (version, release, loose, identifier) {
-		  if (typeof (loose) === 'string') {
-		    identifier = loose;
-		    loose = undefined;
-		  }
-
-		  try {
-		    return new SemVer(version, loose).inc(release, identifier).version
-		  } catch (er) {
-		    return null
-		  }
-		}
-
-		exports.diff = diff;
-		function diff (version1, version2) {
-		  if (eq(version1, version2)) {
-		    return null
-		  } else {
-		    var v1 = parse(version1);
-		    var v2 = parse(version2);
-		    var prefix = '';
-		    if (v1.prerelease.length || v2.prerelease.length) {
-		      prefix = 'pre';
-		      var defaultResult = 'prerelease';
-		    }
-		    for (var key in v1) {
-		      if (key === 'major' || key === 'minor' || key === 'patch') {
-		        if (v1[key] !== v2[key]) {
-		          return prefix + key
-		        }
-		      }
-		    }
-		    return defaultResult // may be undefined
-		  }
-		}
-
-		exports.compareIdentifiers = compareIdentifiers;
-
-		var numeric = /^[0-9]+$/;
-		function compareIdentifiers (a, b) {
-		  var anum = numeric.test(a);
-		  var bnum = numeric.test(b);
-
-		  if (anum && bnum) {
-		    a = +a;
-		    b = +b;
-		  }
-
-		  return a === b ? 0
-		    : (anum && !bnum) ? -1
-		    : (bnum && !anum) ? 1
-		    : a < b ? -1
-		    : 1
-		}
-
-		exports.rcompareIdentifiers = rcompareIdentifiers;
-		function rcompareIdentifiers (a, b) {
-		  return compareIdentifiers(b, a)
-		}
-
-		exports.major = major;
-		function major (a, loose) {
-		  return new SemVer(a, loose).major
-		}
-
-		exports.minor = minor;
-		function minor (a, loose) {
-		  return new SemVer(a, loose).minor
-		}
-
-		exports.patch = patch;
-		function patch (a, loose) {
-		  return new SemVer(a, loose).patch
-		}
-
-		exports.compare = compare;
-		function compare (a, b, loose) {
-		  return new SemVer(a, loose).compare(new SemVer(b, loose))
-		}
-
-		exports.compareLoose = compareLoose;
-		function compareLoose (a, b) {
-		  return compare(a, b, true)
-		}
-
-		exports.compareBuild = compareBuild;
-		function compareBuild (a, b, loose) {
-		  var versionA = new SemVer(a, loose);
-		  var versionB = new SemVer(b, loose);
-		  return versionA.compare(versionB) || versionA.compareBuild(versionB)
-		}
-
-		exports.rcompare = rcompare;
-		function rcompare (a, b, loose) {
-		  return compare(b, a, loose)
-		}
-
-		exports.sort = sort;
-		function sort (list, loose) {
-		  return list.sort(function (a, b) {
-		    return exports.compareBuild(a, b, loose)
-		  })
-		}
-
-		exports.rsort = rsort;
-		function rsort (list, loose) {
-		  return list.sort(function (a, b) {
-		    return exports.compareBuild(b, a, loose)
-		  })
-		}
-
-		exports.gt = gt;
-		function gt (a, b, loose) {
-		  return compare(a, b, loose) > 0
-		}
-
-		exports.lt = lt;
-		function lt (a, b, loose) {
-		  return compare(a, b, loose) < 0
-		}
-
-		exports.eq = eq;
-		function eq (a, b, loose) {
-		  return compare(a, b, loose) === 0
-		}
-
-		exports.neq = neq;
-		function neq (a, b, loose) {
-		  return compare(a, b, loose) !== 0
-		}
-
-		exports.gte = gte;
-		function gte (a, b, loose) {
-		  return compare(a, b, loose) >= 0
-		}
-
-		exports.lte = lte;
-		function lte (a, b, loose) {
-		  return compare(a, b, loose) <= 0
-		}
-
-		exports.cmp = cmp;
-		function cmp (a, op, b, loose) {
-		  switch (op) {
-		    case '===':
-		      if (typeof a === 'object')
-		        a = a.version;
-		      if (typeof b === 'object')
-		        b = b.version;
-		      return a === b
-
-		    case '!==':
-		      if (typeof a === 'object')
-		        a = a.version;
-		      if (typeof b === 'object')
-		        b = b.version;
-		      return a !== b
-
-		    case '':
-		    case '=':
-		    case '==':
-		      return eq(a, b, loose)
-
-		    case '!=':
-		      return neq(a, b, loose)
-
-		    case '>':
-		      return gt(a, b, loose)
-
-		    case '>=':
-		      return gte(a, b, loose)
-
-		    case '<':
-		      return lt(a, b, loose)
-
-		    case '<=':
-		      return lte(a, b, loose)
-
-		    default:
-		      throw new TypeError('Invalid operator: ' + op)
-		  }
-		}
-
-		exports.Comparator = Comparator;
-		function Comparator (comp, options) {
-		  if (!options || typeof options !== 'object') {
-		    options = {
-		      loose: !!options,
-		      includePrerelease: false
-		    };
-		  }
-
-		  if (comp instanceof Comparator) {
-		    if (comp.loose === !!options.loose) {
-		      return comp
-		    } else {
-		      comp = comp.value;
-		    }
-		  }
-
-		  if (!(this instanceof Comparator)) {
-		    return new Comparator(comp, options)
-		  }
-
-		  comp = comp.trim().split(/\s+/).join(' ');
-		  debug('comparator', comp, options);
-		  this.options = options;
-		  this.loose = !!options.loose;
-		  this.parse(comp);
-
-		  if (this.semver === ANY) {
-		    this.value = '';
-		  } else {
-		    this.value = this.operator + this.semver.version;
-		  }
-
-		  debug('comp', this);
-		}
-
-		var ANY = {};
-		Comparator.prototype.parse = function (comp) {
-		  var r = this.options.loose ? safeRe[t.COMPARATORLOOSE] : safeRe[t.COMPARATOR];
-		  var m = comp.match(r);
-
-		  if (!m) {
-		    throw new TypeError('Invalid comparator: ' + comp)
-		  }
-
-		  this.operator = m[1] !== undefined ? m[1] : '';
-		  if (this.operator === '=') {
-		    this.operator = '';
-		  }
-
-		  // if it literally is just '>' or '' then allow anything.
-		  if (!m[2]) {
-		    this.semver = ANY;
-		  } else {
-		    this.semver = new SemVer(m[2], this.options.loose);
-		  }
-		};
-
-		Comparator.prototype.toString = function () {
-		  return this.value
-		};
-
-		Comparator.prototype.test = function (version) {
-		  debug('Comparator.test', version, this.options.loose);
-
-		  if (this.semver === ANY || version === ANY) {
-		    return true
-		  }
-
-		  if (typeof version === 'string') {
-		    try {
-		      version = new SemVer(version, this.options);
-		    } catch (er) {
-		      return false
-		    }
-		  }
-
-		  return cmp(version, this.operator, this.semver, this.options)
-		};
-
-		Comparator.prototype.intersects = function (comp, options) {
-		  if (!(comp instanceof Comparator)) {
-		    throw new TypeError('a Comparator is required')
-		  }
-
-		  if (!options || typeof options !== 'object') {
-		    options = {
-		      loose: !!options,
-		      includePrerelease: false
-		    };
-		  }
-
-		  var rangeTmp;
-
-		  if (this.operator === '') {
-		    if (this.value === '') {
-		      return true
-		    }
-		    rangeTmp = new Range(comp.value, options);
-		    return satisfies(this.value, rangeTmp, options)
-		  } else if (comp.operator === '') {
-		    if (comp.value === '') {
-		      return true
-		    }
-		    rangeTmp = new Range(this.value, options);
-		    return satisfies(comp.semver, rangeTmp, options)
-		  }
-
-		  var sameDirectionIncreasing =
-		    (this.operator === '>=' || this.operator === '>') &&
-		    (comp.operator === '>=' || comp.operator === '>');
-		  var sameDirectionDecreasing =
-		    (this.operator === '<=' || this.operator === '<') &&
-		    (comp.operator === '<=' || comp.operator === '<');
-		  var sameSemVer = this.semver.version === comp.semver.version;
-		  var differentDirectionsInclusive =
-		    (this.operator === '>=' || this.operator === '<=') &&
-		    (comp.operator === '>=' || comp.operator === '<=');
-		  var oppositeDirectionsLessThan =
-		    cmp(this.semver, '<', comp.semver, options) &&
-		    ((this.operator === '>=' || this.operator === '>') &&
-		    (comp.operator === '<=' || comp.operator === '<'));
-		  var oppositeDirectionsGreaterThan =
-		    cmp(this.semver, '>', comp.semver, options) &&
-		    ((this.operator === '<=' || this.operator === '<') &&
-		    (comp.operator === '>=' || comp.operator === '>'));
-
-		  return sameDirectionIncreasing || sameDirectionDecreasing ||
-		    (sameSemVer && differentDirectionsInclusive) ||
-		    oppositeDirectionsLessThan || oppositeDirectionsGreaterThan
-		};
-
-		exports.Range = Range;
-		function Range (range, options) {
-		  if (!options || typeof options !== 'object') {
-		    options = {
-		      loose: !!options,
-		      includePrerelease: false
-		    };
-		  }
-
-		  if (range instanceof Range) {
-		    if (range.loose === !!options.loose &&
-		        range.includePrerelease === !!options.includePrerelease) {
-		      return range
-		    } else {
-		      return new Range(range.raw, options)
-		    }
-		  }
-
-		  if (range instanceof Comparator) {
-		    return new Range(range.value, options)
-		  }
-
-		  if (!(this instanceof Range)) {
-		    return new Range(range, options)
-		  }
-
-		  this.options = options;
-		  this.loose = !!options.loose;
-		  this.includePrerelease = !!options.includePrerelease;
-
-		  // First reduce all whitespace as much as possible so we do not have to rely
-		  // on potentially slow regexes like \s*. This is then stored and used for
-		  // future error messages as well.
-		  this.raw = range
-		    .trim()
-		    .split(/\s+/)
-		    .join(' ');
-
-		  // First, split based on boolean or ||
-		  this.set = this.raw.split('||').map(function (range) {
-		    return this.parseRange(range.trim())
-		  }, this).filter(function (c) {
-		    // throw out any that are not relevant for whatever reason
-		    return c.length
-		  });
-
-		  if (!this.set.length) {
-		    throw new TypeError('Invalid SemVer Range: ' + this.raw)
-		  }
-
-		  this.format();
-		}
-
-		Range.prototype.format = function () {
-		  this.range = this.set.map(function (comps) {
-		    return comps.join(' ').trim()
-		  }).join('||').trim();
-		  return this.range
-		};
-
-		Range.prototype.toString = function () {
-		  return this.range
-		};
-
-		Range.prototype.parseRange = function (range) {
-		  var loose = this.options.loose;
-		  // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
-		  var hr = loose ? safeRe[t.HYPHENRANGELOOSE] : safeRe[t.HYPHENRANGE];
-		  range = range.replace(hr, hyphenReplace);
-		  debug('hyphen replace', range);
-		  // `> 1.2.3 < 1.2.5` => `>1.2.3 <1.2.5`
-		  range = range.replace(safeRe[t.COMPARATORTRIM], comparatorTrimReplace);
-		  debug('comparator trim', range, safeRe[t.COMPARATORTRIM]);
-
-		  // `~ 1.2.3` => `~1.2.3`
-		  range = range.replace(safeRe[t.TILDETRIM], tildeTrimReplace);
-
-		  // `^ 1.2.3` => `^1.2.3`
-		  range = range.replace(safeRe[t.CARETTRIM], caretTrimReplace);
-
-		  // normalize spaces
-		  range = range.split(/\s+/).join(' ');
-
-		  // At this point, the range is completely trimmed and
-		  // ready to be split into comparators.
-
-		  var compRe = loose ? safeRe[t.COMPARATORLOOSE] : safeRe[t.COMPARATOR];
-		  var set = range.split(' ').map(function (comp) {
-		    return parseComparator(comp, this.options)
-		  }, this).join(' ').split(/\s+/);
-		  if (this.options.loose) {
-		    // in loose mode, throw out any that are not valid comparators
-		    set = set.filter(function (comp) {
-		      return !!comp.match(compRe)
-		    });
-		  }
-		  set = set.map(function (comp) {
-		    return new Comparator(comp, this.options)
-		  }, this);
-
-		  return set
-		};
-
-		Range.prototype.intersects = function (range, options) {
-		  if (!(range instanceof Range)) {
-		    throw new TypeError('a Range is required')
-		  }
-
-		  return this.set.some(function (thisComparators) {
-		    return (
-		      isSatisfiable(thisComparators, options) &&
-		      range.set.some(function (rangeComparators) {
-		        return (
-		          isSatisfiable(rangeComparators, options) &&
-		          thisComparators.every(function (thisComparator) {
-		            return rangeComparators.every(function (rangeComparator) {
-		              return thisComparator.intersects(rangeComparator, options)
-		            })
-		          })
-		        )
-		      })
-		    )
-		  })
-		};
-
-		// take a set of comparators and determine whether there
-		// exists a version which can satisfy it
-		function isSatisfiable (comparators, options) {
-		  var result = true;
-		  var remainingComparators = comparators.slice();
-		  var testComparator = remainingComparators.pop();
-
-		  while (result && remainingComparators.length) {
-		    result = remainingComparators.every(function (otherComparator) {
-		      return testComparator.intersects(otherComparator, options)
-		    });
-
-		    testComparator = remainingComparators.pop();
-		  }
-
-		  return result
-		}
-
-		// Mostly just for testing and legacy API reasons
-		exports.toComparators = toComparators;
-		function toComparators (range, options) {
-		  return new Range(range, options).set.map(function (comp) {
-		    return comp.map(function (c) {
-		      return c.value
-		    }).join(' ').trim().split(' ')
-		  })
-		}
-
-		// comprised of xranges, tildes, stars, and gtlt's at this point.
-		// already replaced the hyphen ranges
-		// turn into a set of JUST comparators.
-		function parseComparator (comp, options) {
-		  debug('comp', comp, options);
-		  comp = replaceCarets(comp, options);
-		  debug('caret', comp);
-		  comp = replaceTildes(comp, options);
-		  debug('tildes', comp);
-		  comp = replaceXRanges(comp, options);
-		  debug('xrange', comp);
-		  comp = replaceStars(comp, options);
-		  debug('stars', comp);
-		  return comp
-		}
-
-		function isX (id) {
-		  return !id || id.toLowerCase() === 'x' || id === '*'
-		}
-
-		// ~, ~> --> * (any, kinda silly)
-		// ~2, ~2.x, ~2.x.x, ~>2, ~>2.x ~>2.x.x --> >=2.0.0 <3.0.0
-		// ~2.0, ~2.0.x, ~>2.0, ~>2.0.x --> >=2.0.0 <2.1.0
-		// ~1.2, ~1.2.x, ~>1.2, ~>1.2.x --> >=1.2.0 <1.3.0
-		// ~1.2.3, ~>1.2.3 --> >=1.2.3 <1.3.0
-		// ~1.2.0, ~>1.2.0 --> >=1.2.0 <1.3.0
-		function replaceTildes (comp, options) {
-		  return comp.trim().split(/\s+/).map(function (comp) {
-		    return replaceTilde(comp, options)
-		  }).join(' ')
-		}
-
-		function replaceTilde (comp, options) {
-		  var r = options.loose ? safeRe[t.TILDELOOSE] : safeRe[t.TILDE];
-		  return comp.replace(r, function (_, M, m, p, pr) {
-		    debug('tilde', comp, _, M, m, p, pr);
-		    var ret;
-
-		    if (isX(M)) {
-		      ret = '';
-		    } else if (isX(m)) {
-		      ret = '>=' + M + '.0.0 <' + (+M + 1) + '.0.0';
-		    } else if (isX(p)) {
-		      // ~1.2 == >=1.2.0 <1.3.0
-		      ret = '>=' + M + '.' + m + '.0 <' + M + '.' + (+m + 1) + '.0';
-		    } else if (pr) {
-		      debug('replaceTilde pr', pr);
-		      ret = '>=' + M + '.' + m + '.' + p + '-' + pr +
-		            ' <' + M + '.' + (+m + 1) + '.0';
-		    } else {
-		      // ~1.2.3 == >=1.2.3 <1.3.0
-		      ret = '>=' + M + '.' + m + '.' + p +
-		            ' <' + M + '.' + (+m + 1) + '.0';
-		    }
-
-		    debug('tilde return', ret);
-		    return ret
-		  })
-		}
-
-		// ^ --> * (any, kinda silly)
-		// ^2, ^2.x, ^2.x.x --> >=2.0.0 <3.0.0
-		// ^2.0, ^2.0.x --> >=2.0.0 <3.0.0
-		// ^1.2, ^1.2.x --> >=1.2.0 <2.0.0
-		// ^1.2.3 --> >=1.2.3 <2.0.0
-		// ^1.2.0 --> >=1.2.0 <2.0.0
-		function replaceCarets (comp, options) {
-		  return comp.trim().split(/\s+/).map(function (comp) {
-		    return replaceCaret(comp, options)
-		  }).join(' ')
-		}
-
-		function replaceCaret (comp, options) {
-		  debug('caret', comp, options);
-		  var r = options.loose ? safeRe[t.CARETLOOSE] : safeRe[t.CARET];
-		  return comp.replace(r, function (_, M, m, p, pr) {
-		    debug('caret', comp, _, M, m, p, pr);
-		    var ret;
-
-		    if (isX(M)) {
-		      ret = '';
-		    } else if (isX(m)) {
-		      ret = '>=' + M + '.0.0 <' + (+M + 1) + '.0.0';
-		    } else if (isX(p)) {
-		      if (M === '0') {
-		        ret = '>=' + M + '.' + m + '.0 <' + M + '.' + (+m + 1) + '.0';
-		      } else {
-		        ret = '>=' + M + '.' + m + '.0 <' + (+M + 1) + '.0.0';
-		      }
-		    } else if (pr) {
-		      debug('replaceCaret pr', pr);
-		      if (M === '0') {
-		        if (m === '0') {
-		          ret = '>=' + M + '.' + m + '.' + p + '-' + pr +
-		                ' <' + M + '.' + m + '.' + (+p + 1);
-		        } else {
-		          ret = '>=' + M + '.' + m + '.' + p + '-' + pr +
-		                ' <' + M + '.' + (+m + 1) + '.0';
-		        }
-		      } else {
-		        ret = '>=' + M + '.' + m + '.' + p + '-' + pr +
-		              ' <' + (+M + 1) + '.0.0';
-		      }
-		    } else {
-		      debug('no pr');
-		      if (M === '0') {
-		        if (m === '0') {
-		          ret = '>=' + M + '.' + m + '.' + p +
-		                ' <' + M + '.' + m + '.' + (+p + 1);
-		        } else {
-		          ret = '>=' + M + '.' + m + '.' + p +
-		                ' <' + M + '.' + (+m + 1) + '.0';
-		        }
-		      } else {
-		        ret = '>=' + M + '.' + m + '.' + p +
-		              ' <' + (+M + 1) + '.0.0';
-		      }
-		    }
-
-		    debug('caret return', ret);
-		    return ret
-		  })
-		}
-
-		function replaceXRanges (comp, options) {
-		  debug('replaceXRanges', comp, options);
-		  return comp.split(/\s+/).map(function (comp) {
-		    return replaceXRange(comp, options)
-		  }).join(' ')
-		}
-
-		function replaceXRange (comp, options) {
-		  comp = comp.trim();
-		  var r = options.loose ? safeRe[t.XRANGELOOSE] : safeRe[t.XRANGE];
-		  return comp.replace(r, function (ret, gtlt, M, m, p, pr) {
-		    debug('xRange', comp, ret, gtlt, M, m, p, pr);
-		    var xM = isX(M);
-		    var xm = xM || isX(m);
-		    var xp = xm || isX(p);
-		    var anyX = xp;
-
-		    if (gtlt === '=' && anyX) {
-		      gtlt = '';
-		    }
-
-		    // if we're including prereleases in the match, then we need
-		    // to fix this to -0, the lowest possible prerelease value
-		    pr = options.includePrerelease ? '-0' : '';
-
-		    if (xM) {
-		      if (gtlt === '>' || gtlt === '<') {
-		        // nothing is allowed
-		        ret = '<0.0.0-0';
-		      } else {
-		        // nothing is forbidden
-		        ret = '*';
-		      }
-		    } else if (gtlt && anyX) {
-		      // we know patch is an x, because we have any x at all.
-		      // replace X with 0
-		      if (xm) {
-		        m = 0;
-		      }
-		      p = 0;
-
-		      if (gtlt === '>') {
-		        // >1 => >=2.0.0
-		        // >1.2 => >=1.3.0
-		        // >1.2.3 => >= 1.2.4
-		        gtlt = '>=';
-		        if (xm) {
-		          M = +M + 1;
-		          m = 0;
-		          p = 0;
-		        } else {
-		          m = +m + 1;
-		          p = 0;
-		        }
-		      } else if (gtlt === '<=') {
-		        // <=0.7.x is actually <0.8.0, since any 0.7.x should
-		        // pass.  Similarly, <=7.x is actually <8.0.0, etc.
-		        gtlt = '<';
-		        if (xm) {
-		          M = +M + 1;
-		        } else {
-		          m = +m + 1;
-		        }
-		      }
-
-		      ret = gtlt + M + '.' + m + '.' + p + pr;
-		    } else if (xm) {
-		      ret = '>=' + M + '.0.0' + pr + ' <' + (+M + 1) + '.0.0' + pr;
-		    } else if (xp) {
-		      ret = '>=' + M + '.' + m + '.0' + pr +
-		        ' <' + M + '.' + (+m + 1) + '.0' + pr;
-		    }
-
-		    debug('xRange return', ret);
-
-		    return ret
-		  })
-		}
-
-		// Because * is AND-ed with everything else in the comparator,
-		// and '' means "any version", just remove the *s entirely.
-		function replaceStars (comp, options) {
-		  debug('replaceStars', comp, options);
-		  // Looseness is ignored here.  star is always as loose as it gets!
-		  return comp.trim().replace(safeRe[t.STAR], '')
-		}
-
-		// This function is passed to string.replace(re[t.HYPHENRANGE])
-		// M, m, patch, prerelease, build
-		// 1.2 - 3.4.5 => >=1.2.0 <=3.4.5
-		// 1.2.3 - 3.4 => >=1.2.0 <3.5.0 Any 3.4.x will do
-		// 1.2 - 3.4 => >=1.2.0 <3.5.0
-		function hyphenReplace ($0,
-		  from, fM, fm, fp, fpr, fb,
-		  to, tM, tm, tp, tpr, tb) {
-		  if (isX(fM)) {
-		    from = '';
-		  } else if (isX(fm)) {
-		    from = '>=' + fM + '.0.0';
-		  } else if (isX(fp)) {
-		    from = '>=' + fM + '.' + fm + '.0';
-		  } else {
-		    from = '>=' + from;
-		  }
-
-		  if (isX(tM)) {
-		    to = '';
-		  } else if (isX(tm)) {
-		    to = '<' + (+tM + 1) + '.0.0';
-		  } else if (isX(tp)) {
-		    to = '<' + tM + '.' + (+tm + 1) + '.0';
-		  } else if (tpr) {
-		    to = '<=' + tM + '.' + tm + '.' + tp + '-' + tpr;
-		  } else {
-		    to = '<=' + to;
-		  }
-
-		  return (from + ' ' + to).trim()
-		}
-
-		// if ANY of the sets match ALL of its comparators, then pass
-		Range.prototype.test = function (version) {
-		  if (!version) {
-		    return false
-		  }
-
-		  if (typeof version === 'string') {
-		    try {
-		      version = new SemVer(version, this.options);
-		    } catch (er) {
-		      return false
-		    }
-		  }
-
-		  for (var i = 0; i < this.set.length; i++) {
-		    if (testSet(this.set[i], version, this.options)) {
-		      return true
-		    }
-		  }
-		  return false
-		};
-
-		function testSet (set, version, options) {
-		  for (var i = 0; i < set.length; i++) {
-		    if (!set[i].test(version)) {
-		      return false
-		    }
-		  }
-
-		  if (version.prerelease.length && !options.includePrerelease) {
-		    // Find the set of versions that are allowed to have prereleases
-		    // For example, ^1.2.3-pr.1 desugars to >=1.2.3-pr.1 <2.0.0
-		    // That should allow `1.2.3-pr.2` to pass.
-		    // However, `1.2.4-alpha.notready` should NOT be allowed,
-		    // even though it's within the range set by the comparators.
-		    for (i = 0; i < set.length; i++) {
-		      debug(set[i].semver);
-		      if (set[i].semver === ANY) {
-		        continue
-		      }
-
-		      if (set[i].semver.prerelease.length > 0) {
-		        var allowed = set[i].semver;
-		        if (allowed.major === version.major &&
-		            allowed.minor === version.minor &&
-		            allowed.patch === version.patch) {
-		          return true
-		        }
-		      }
-		    }
-
-		    // Version has a -pre, but it's not one of the ones we like.
-		    return false
-		  }
-
-		  return true
-		}
-
-		exports.satisfies = satisfies;
-		function satisfies (version, range, options) {
-		  try {
-		    range = new Range(range, options);
-		  } catch (er) {
-		    return false
-		  }
-		  return range.test(version)
-		}
-
-		exports.maxSatisfying = maxSatisfying;
-		function maxSatisfying (versions, range, options) {
-		  var max = null;
-		  var maxSV = null;
-		  try {
-		    var rangeObj = new Range(range, options);
-		  } catch (er) {
-		    return null
-		  }
-		  versions.forEach(function (v) {
-		    if (rangeObj.test(v)) {
-		      // satisfies(v, range, options)
-		      if (!max || maxSV.compare(v) === -1) {
-		        // compare(max, v, true)
-		        max = v;
-		        maxSV = new SemVer(max, options);
-		      }
-		    }
-		  });
-		  return max
-		}
-
-		exports.minSatisfying = minSatisfying;
-		function minSatisfying (versions, range, options) {
-		  var min = null;
-		  var minSV = null;
-		  try {
-		    var rangeObj = new Range(range, options);
-		  } catch (er) {
-		    return null
-		  }
-		  versions.forEach(function (v) {
-		    if (rangeObj.test(v)) {
-		      // satisfies(v, range, options)
-		      if (!min || minSV.compare(v) === 1) {
-		        // compare(min, v, true)
-		        min = v;
-		        minSV = new SemVer(min, options);
-		      }
-		    }
-		  });
-		  return min
-		}
-
-		exports.minVersion = minVersion;
-		function minVersion (range, loose) {
-		  range = new Range(range, loose);
-
-		  var minver = new SemVer('0.0.0');
-		  if (range.test(minver)) {
-		    return minver
-		  }
-
-		  minver = new SemVer('0.0.0-0');
-		  if (range.test(minver)) {
-		    return minver
-		  }
-
-		  minver = null;
-		  for (var i = 0; i < range.set.length; ++i) {
-		    var comparators = range.set[i];
-
-		    comparators.forEach(function (comparator) {
-		      // Clone to avoid manipulating the comparator's semver object.
-		      var compver = new SemVer(comparator.semver.version);
-		      switch (comparator.operator) {
-		        case '>':
-		          if (compver.prerelease.length === 0) {
-		            compver.patch++;
-		          } else {
-		            compver.prerelease.push(0);
-		          }
-		          compver.raw = compver.format();
-		          /* fallthrough */
-		        case '':
-		        case '>=':
-		          if (!minver || gt(minver, compver)) {
-		            minver = compver;
-		          }
-		          break
-		        case '<':
-		        case '<=':
-		          /* Ignore maximum versions */
-		          break
-		        /* istanbul ignore next */
-		        default:
-		          throw new Error('Unexpected operation: ' + comparator.operator)
-		      }
-		    });
-		  }
-
-		  if (minver && range.test(minver)) {
-		    return minver
-		  }
-
-		  return null
-		}
-
-		exports.validRange = validRange;
-		function validRange (range, options) {
-		  try {
-		    // Return '*' instead of '' so that truthiness works.
-		    // This will throw if it's invalid anyway
-		    return new Range(range, options).range || '*'
-		  } catch (er) {
-		    return null
-		  }
-		}
-
-		// Determine if version is less than all the versions possible in the range
-		exports.ltr = ltr;
-		function ltr (version, range, options) {
-		  return outside(version, range, '<', options)
-		}
-
-		// Determine if version is greater than all the versions possible in the range.
-		exports.gtr = gtr;
-		function gtr (version, range, options) {
-		  return outside(version, range, '>', options)
-		}
-
-		exports.outside = outside;
-		function outside (version, range, hilo, options) {
-		  version = new SemVer(version, options);
-		  range = new Range(range, options);
-
-		  var gtfn, ltefn, ltfn, comp, ecomp;
-		  switch (hilo) {
-		    case '>':
-		      gtfn = gt;
-		      ltefn = lte;
-		      ltfn = lt;
-		      comp = '>';
-		      ecomp = '>=';
-		      break
-		    case '<':
-		      gtfn = lt;
-		      ltefn = gte;
-		      ltfn = gt;
-		      comp = '<';
-		      ecomp = '<=';
-		      break
-		    default:
-		      throw new TypeError('Must provide a hilo val of "<" or ">"')
-		  }
-
-		  // If it satisifes the range it is not outside
-		  if (satisfies(version, range, options)) {
-		    return false
-		  }
-
-		  // From now on, variable terms are as if we're in "gtr" mode.
-		  // but note that everything is flipped for the "ltr" function.
-
-		  for (var i = 0; i < range.set.length; ++i) {
-		    var comparators = range.set[i];
-
-		    var high = null;
-		    var low = null;
-
-		    comparators.forEach(function (comparator) {
-		      if (comparator.semver === ANY) {
-		        comparator = new Comparator('>=0.0.0');
-		      }
-		      high = high || comparator;
-		      low = low || comparator;
-		      if (gtfn(comparator.semver, high.semver, options)) {
-		        high = comparator;
-		      } else if (ltfn(comparator.semver, low.semver, options)) {
-		        low = comparator;
-		      }
-		    });
-
-		    // If the edge version comparator has a operator then our version
-		    // isn't outside it
-		    if (high.operator === comp || high.operator === ecomp) {
-		      return false
-		    }
-
-		    // If the lowest version comparator has an operator and our version
-		    // is less than it then it isn't higher than the range
-		    if ((!low.operator || low.operator === comp) &&
-		        ltefn(version, low.semver)) {
-		      return false
-		    } else if (low.operator === ecomp && ltfn(version, low.semver)) {
-		      return false
-		    }
-		  }
-		  return true
-		}
-
-		exports.prerelease = prerelease;
-		function prerelease (version, options) {
-		  var parsed = parse(version, options);
-		  return (parsed && parsed.prerelease.length) ? parsed.prerelease : null
-		}
-
-		exports.intersects = intersects;
-		function intersects (r1, r2, options) {
-		  r1 = new Range(r1, options);
-		  r2 = new Range(r2, options);
-		  return r1.intersects(r2)
-		}
-
-		exports.coerce = coerce;
-		function coerce (version, options) {
-		  if (version instanceof SemVer) {
-		    return version
-		  }
-
-		  if (typeof version === 'number') {
-		    version = String(version);
-		  }
-
-		  if (typeof version !== 'string') {
-		    return null
-		  }
-
-		  options = options || {};
-
-		  var match = null;
-		  if (!options.rtl) {
-		    match = version.match(safeRe[t.COERCE]);
-		  } else {
-		    // Find the right-most coercible string that does not share
-		    // a terminus with a more left-ward coercible string.
-		    // Eg, '1.2.3.4' wants to coerce '2.3.4', not '3.4' or '4'
-		    //
-		    // Walk through the string checking with a /g regexp
-		    // Manually set the index so as to pick up overlapping matches.
-		    // Stop when we get a match that ends at the string end, since no
-		    // coercible string can be more right-ward without the same terminus.
-		    var next;
-		    while ((next = safeRe[t.COERCERTL].exec(version)) &&
-		      (!match || match.index + match[0].length !== version.length)
-		    ) {
-		      if (!match ||
-		          next.index + next[0].length !== match.index + match[0].length) {
-		        match = next;
-		      }
-		      safeRe[t.COERCERTL].lastIndex = next.index + next[1].length + next[2].length;
-		    }
-		    // leave it in a clean state
-		    safeRe[t.COERCERTL].lastIndex = -1;
-		  }
-
-		  if (match === null) {
-		    return null
-		  }
-
-		  return parse(match[2] +
-		    '.' + (match[3] || '0') +
-		    '.' + (match[4] || '0'), options)
-		} 
-	} (semver, semver.exports));
-	return semver.exports;
-}
-
 var manifest = manifest$1.exports;
 
 var hasRequiredManifest;
@@ -93405,7 +88692,7 @@ function requireManifest () {
 		};
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports._readLinuxVersionFile = exports._getOsVersion = exports._findMatch = void 0;
-		const semver = __importStar(requireSemver());
+		const semver = __importStar(requireSemver$2());
 		const core_1 = requireCore$1();
 		// needs to be require for core node modules to be mocked
 		/* eslint @typescript-eslint/no-require-imports: 0 */
@@ -93646,7 +88933,7 @@ function requireToolCache () {
 	const os = __importStar(require$$0$5);
 	const path = __importStar(require$$1$6);
 	const httpm = __importStar(requireLib$2());
-	const semver = __importStar(requireSemver());
+	const semver = __importStar(requireSemver$2());
 	const stream = __importStar(require$$0$c);
 	const util = __importStar(require$$0$8);
 	const assert_1 = require$$0$a;
@@ -94276,117 +89563,3030 @@ var toolCacheExports = requireToolCache();
 
 var ioExports = requireIo();
 
+var re = {exports: {}};
+
+var constants$2;
+var hasRequiredConstants$2;
+
+function requireConstants$2 () {
+	if (hasRequiredConstants$2) return constants$2;
+	hasRequiredConstants$2 = 1;
+
+	// Note: this is the semver.org version of the spec that it implements
+	// Not necessarily the package version of this code.
+	const SEMVER_SPEC_VERSION = '2.0.0';
+
+	const MAX_LENGTH = 256;
+	const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER ||
+	/* istanbul ignore next */ 9007199254740991;
+
+	// Max safe segment length for coercion.
+	const MAX_SAFE_COMPONENT_LENGTH = 16;
+
+	// Max safe length for a build identifier. The max length minus 6 characters for
+	// the shortest version with a build 0.0.0+BUILD.
+	const MAX_SAFE_BUILD_LENGTH = MAX_LENGTH - 6;
+
+	const RELEASE_TYPES = [
+	  'major',
+	  'premajor',
+	  'minor',
+	  'preminor',
+	  'patch',
+	  'prepatch',
+	  'prerelease',
+	];
+
+	constants$2 = {
+	  MAX_LENGTH,
+	  MAX_SAFE_COMPONENT_LENGTH,
+	  MAX_SAFE_BUILD_LENGTH,
+	  MAX_SAFE_INTEGER,
+	  RELEASE_TYPES,
+	  SEMVER_SPEC_VERSION,
+	  FLAG_INCLUDE_PRERELEASE: 0b001,
+	  FLAG_LOOSE: 0b010,
+	};
+	return constants$2;
+}
+
+var debug_1;
+var hasRequiredDebug;
+
+function requireDebug () {
+	if (hasRequiredDebug) return debug_1;
+	hasRequiredDebug = 1;
+
+	const debug = (
+	  typeof process === 'object' &&
+	  process.env &&
+	  process.env.NODE_DEBUG &&
+	  /\bsemver\b/i.test(process.env.NODE_DEBUG)
+	) ? (...args) => console.error('SEMVER', ...args)
+	  : () => {};
+
+	debug_1 = debug;
+	return debug_1;
+}
+
+var hasRequiredRe;
+
+function requireRe () {
+	if (hasRequiredRe) return re.exports;
+	hasRequiredRe = 1;
+	(function (module, exports) {
+
+		const {
+		  MAX_SAFE_COMPONENT_LENGTH,
+		  MAX_SAFE_BUILD_LENGTH,
+		  MAX_LENGTH,
+		} = requireConstants$2();
+		const debug = requireDebug();
+		exports = module.exports = {};
+
+		// The actual regexps go on exports.re
+		const re = exports.re = [];
+		const safeRe = exports.safeRe = [];
+		const src = exports.src = [];
+		const safeSrc = exports.safeSrc = [];
+		const t = exports.t = {};
+		let R = 0;
+
+		const LETTERDASHNUMBER = '[a-zA-Z0-9-]';
+
+		// Replace some greedy regex tokens to prevent regex dos issues. These regex are
+		// used internally via the safeRe object since all inputs in this library get
+		// normalized first to trim and collapse all extra whitespace. The original
+		// regexes are exported for userland consumption and lower level usage. A
+		// future breaking change could export the safer regex only with a note that
+		// all input should have extra whitespace removed.
+		const safeRegexReplacements = [
+		  ['\\s', 1],
+		  ['\\d', MAX_LENGTH],
+		  [LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH],
+		];
+
+		const makeSafeRegex = (value) => {
+		  for (const [token, max] of safeRegexReplacements) {
+		    value = value
+		      .split(`${token}*`).join(`${token}{0,${max}}`)
+		      .split(`${token}+`).join(`${token}{1,${max}}`);
+		  }
+		  return value
+		};
+
+		const createToken = (name, value, isGlobal) => {
+		  const safe = makeSafeRegex(value);
+		  const index = R++;
+		  debug(name, index, value);
+		  t[name] = index;
+		  src[index] = value;
+		  safeSrc[index] = safe;
+		  re[index] = new RegExp(value, isGlobal ? 'g' : undefined);
+		  safeRe[index] = new RegExp(safe, isGlobal ? 'g' : undefined);
+		};
+
+		// The following Regular Expressions can be used for tokenizing,
+		// validating, and parsing SemVer version strings.
+
+		// ## Numeric Identifier
+		// A single `0`, or a non-zero digit followed by zero or more digits.
+
+		createToken('NUMERICIDENTIFIER', '0|[1-9]\\d*');
+		createToken('NUMERICIDENTIFIERLOOSE', '\\d+');
+
+		// ## Non-numeric Identifier
+		// Zero or more digits, followed by a letter or hyphen, and then zero or
+		// more letters, digits, or hyphens.
+
+		createToken('NONNUMERICIDENTIFIER', `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
+
+		// ## Main Version
+		// Three dot-separated numeric identifiers.
+
+		createToken('MAINVERSION', `(${src[t.NUMERICIDENTIFIER]})\\.` +
+		                   `(${src[t.NUMERICIDENTIFIER]})\\.` +
+		                   `(${src[t.NUMERICIDENTIFIER]})`);
+
+		createToken('MAINVERSIONLOOSE', `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
+		                        `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
+		                        `(${src[t.NUMERICIDENTIFIERLOOSE]})`);
+
+		// ## Pre-release Version Identifier
+		// A numeric identifier, or a non-numeric identifier.
+		// Non-numeric identifiers include numeric identifiers but can be longer.
+		// Therefore non-numeric identifiers must go first.
+
+		createToken('PRERELEASEIDENTIFIER', `(?:${src[t.NONNUMERICIDENTIFIER]
+		}|${src[t.NUMERICIDENTIFIER]})`);
+
+		createToken('PRERELEASEIDENTIFIERLOOSE', `(?:${src[t.NONNUMERICIDENTIFIER]
+		}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
+
+		// ## Pre-release Version
+		// Hyphen, followed by one or more dot-separated pre-release version
+		// identifiers.
+
+		createToken('PRERELEASE', `(?:-(${src[t.PRERELEASEIDENTIFIER]
+		}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
+
+		createToken('PRERELEASELOOSE', `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]
+		}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
+
+		// ## Build Metadata Identifier
+		// Any combination of digits, letters, or hyphens.
+
+		createToken('BUILDIDENTIFIER', `${LETTERDASHNUMBER}+`);
+
+		// ## Build Metadata
+		// Plus sign, followed by one or more period-separated build metadata
+		// identifiers.
+
+		createToken('BUILD', `(?:\\+(${src[t.BUILDIDENTIFIER]
+		}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
+
+		// ## Full Version String
+		// A main version, followed optionally by a pre-release version and
+		// build metadata.
+
+		// Note that the only major, minor, patch, and pre-release sections of
+		// the version string are capturing groups.  The build metadata is not a
+		// capturing group, because it should not ever be used in version
+		// comparison.
+
+		createToken('FULLPLAIN', `v?${src[t.MAINVERSION]
+		}${src[t.PRERELEASE]}?${
+		  src[t.BUILD]}?`);
+
+		createToken('FULL', `^${src[t.FULLPLAIN]}$`);
+
+		// like full, but allows v1.2.3 and =1.2.3, which people do sometimes.
+		// also, 1.0.0alpha1 (prerelease without the hyphen) which is pretty
+		// common in the npm registry.
+		createToken('LOOSEPLAIN', `[v=\\s]*${src[t.MAINVERSIONLOOSE]
+		}${src[t.PRERELEASELOOSE]}?${
+		  src[t.BUILD]}?`);
+
+		createToken('LOOSE', `^${src[t.LOOSEPLAIN]}$`);
+
+		createToken('GTLT', '((?:<|>)?=?)');
+
+		// Something like "2.*" or "1.2.x".
+		// Note that "x.x" is a valid xRange identifier, meaning "any version"
+		// Only the first item is strictly required.
+		createToken('XRANGEIDENTIFIERLOOSE', `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
+		createToken('XRANGEIDENTIFIER', `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
+
+		createToken('XRANGEPLAIN', `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})` +
+		                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
+		                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
+		                   `(?:${src[t.PRERELEASE]})?${
+		                     src[t.BUILD]}?` +
+		                   `)?)?`);
+
+		createToken('XRANGEPLAINLOOSE', `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+		                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+		                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+		                        `(?:${src[t.PRERELEASELOOSE]})?${
+		                          src[t.BUILD]}?` +
+		                        `)?)?`);
+
+		createToken('XRANGE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
+		createToken('XRANGELOOSE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
+
+		// Coercion.
+		// Extract anything that could conceivably be a part of a valid semver
+		createToken('COERCEPLAIN', `${'(^|[^\\d])' +
+		              '(\\d{1,'}${MAX_SAFE_COMPONENT_LENGTH}})` +
+		              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
+		              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
+		createToken('COERCE', `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
+		createToken('COERCEFULL', src[t.COERCEPLAIN] +
+		              `(?:${src[t.PRERELEASE]})?` +
+		              `(?:${src[t.BUILD]})?` +
+		              `(?:$|[^\\d])`);
+		createToken('COERCERTL', src[t.COERCE], true);
+		createToken('COERCERTLFULL', src[t.COERCEFULL], true);
+
+		// Tilde ranges.
+		// Meaning is "reasonably at or greater than"
+		createToken('LONETILDE', '(?:~>?)');
+
+		createToken('TILDETRIM', `(\\s*)${src[t.LONETILDE]}\\s+`, true);
+		exports.tildeTrimReplace = '$1~';
+
+		createToken('TILDE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
+		createToken('TILDELOOSE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
+
+		// Caret ranges.
+		// Meaning is "at least and backwards compatible with"
+		createToken('LONECARET', '(?:\\^)');
+
+		createToken('CARETTRIM', `(\\s*)${src[t.LONECARET]}\\s+`, true);
+		exports.caretTrimReplace = '$1^';
+
+		createToken('CARET', `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
+		createToken('CARETLOOSE', `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
+
+		// A simple gt/lt/eq thing, or just "" to indicate "any version"
+		createToken('COMPARATORLOOSE', `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
+		createToken('COMPARATOR', `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
+
+		// An expression to strip any whitespace between the gtlt and the thing
+		// it modifies, so that `> 1.2.3` ==> `>1.2.3`
+		createToken('COMPARATORTRIM', `(\\s*)${src[t.GTLT]
+		}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
+		exports.comparatorTrimReplace = '$1$2$3';
+
+		// Something like `1.2.3 - 1.2.4`
+		// Note that these all use the loose form, because they'll be
+		// checked against either the strict or loose comparator form
+		// later.
+		createToken('HYPHENRANGE', `^\\s*(${src[t.XRANGEPLAIN]})` +
+		                   `\\s+-\\s+` +
+		                   `(${src[t.XRANGEPLAIN]})` +
+		                   `\\s*$`);
+
+		createToken('HYPHENRANGELOOSE', `^\\s*(${src[t.XRANGEPLAINLOOSE]})` +
+		                        `\\s+-\\s+` +
+		                        `(${src[t.XRANGEPLAINLOOSE]})` +
+		                        `\\s*$`);
+
+		// Star ranges basically just allow anything at all.
+		createToken('STAR', '(<|>)?=?\\s*\\*');
+		// >=0.0.0 is like a star
+		createToken('GTE0', '^\\s*>=\\s*0\\.0\\.0\\s*$');
+		createToken('GTE0PRE', '^\\s*>=\\s*0\\.0\\.0-0\\s*$'); 
+	} (re, re.exports));
+	return re.exports;
+}
+
+var parseOptions_1;
+var hasRequiredParseOptions;
+
+function requireParseOptions () {
+	if (hasRequiredParseOptions) return parseOptions_1;
+	hasRequiredParseOptions = 1;
+
+	// parse out just the options we care about
+	const looseOption = Object.freeze({ loose: true });
+	const emptyOpts = Object.freeze({ });
+	const parseOptions = options => {
+	  if (!options) {
+	    return emptyOpts
+	  }
+
+	  if (typeof options !== 'object') {
+	    return looseOption
+	  }
+
+	  return options
+	};
+	parseOptions_1 = parseOptions;
+	return parseOptions_1;
+}
+
+var identifiers;
+var hasRequiredIdentifiers;
+
+function requireIdentifiers () {
+	if (hasRequiredIdentifiers) return identifiers;
+	hasRequiredIdentifiers = 1;
+
+	const numeric = /^[0-9]+$/;
+	const compareIdentifiers = (a, b) => {
+	  if (typeof a === 'number' && typeof b === 'number') {
+	    return a === b ? 0 : a < b ? -1 : 1
+	  }
+
+	  const anum = numeric.test(a);
+	  const bnum = numeric.test(b);
+
+	  if (anum && bnum) {
+	    a = +a;
+	    b = +b;
+	  }
+
+	  return a === b ? 0
+	    : (anum && !bnum) ? -1
+	    : (bnum && !anum) ? 1
+	    : a < b ? -1
+	    : 1
+	};
+
+	const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a);
+
+	identifiers = {
+	  compareIdentifiers,
+	  rcompareIdentifiers,
+	};
+	return identifiers;
+}
+
+var semver$1;
+var hasRequiredSemver$1;
+
+function requireSemver$1 () {
+	if (hasRequiredSemver$1) return semver$1;
+	hasRequiredSemver$1 = 1;
+
+	const debug = requireDebug();
+	const { MAX_LENGTH, MAX_SAFE_INTEGER } = requireConstants$2();
+	const { safeRe: re, t } = requireRe();
+
+	const parseOptions = requireParseOptions();
+	const { compareIdentifiers } = requireIdentifiers();
+
+	const isPrereleaseIdentifier = (prerelease, identifier) => {
+	  const identifiers = identifier.split('.');
+	  if (identifiers.length > prerelease.length) {
+	    return false
+	  }
+
+	  for (let i = 0; i < identifiers.length; i++) {
+	    if (compareIdentifiers(prerelease[i], identifiers[i]) !== 0) {
+	      return false
+	    }
+	  }
+
+	  return true
+	};
+
+	class SemVer {
+	  constructor (version, options) {
+	    options = parseOptions(options);
+
+	    if (version instanceof SemVer) {
+	      if (version.loose === !!options.loose &&
+	        version.includePrerelease === !!options.includePrerelease) {
+	        return version
+	      } else {
+	        version = version.version;
+	      }
+	    } else if (typeof version !== 'string') {
+	      throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`)
+	    }
+
+	    if (version.length > MAX_LENGTH) {
+	      throw new TypeError(
+	        `version is longer than ${MAX_LENGTH} characters`
+	      )
+	    }
+
+	    debug('SemVer', version, options);
+	    this.options = options;
+	    this.loose = !!options.loose;
+	    // this isn't actually relevant for versions, but keep it so that we
+	    // don't run into trouble passing this.options around.
+	    this.includePrerelease = !!options.includePrerelease;
+
+	    const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
+
+	    if (!m) {
+	      throw new TypeError(`Invalid Version: ${version}`)
+	    }
+
+	    this.raw = version;
+
+	    // these are actually numbers
+	    this.major = +m[1];
+	    this.minor = +m[2];
+	    this.patch = +m[3];
+
+	    if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
+	      throw new TypeError('Invalid major version')
+	    }
+
+	    if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
+	      throw new TypeError('Invalid minor version')
+	    }
+
+	    if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
+	      throw new TypeError('Invalid patch version')
+	    }
+
+	    // numberify any prerelease numeric ids
+	    if (!m[4]) {
+	      this.prerelease = [];
+	    } else {
+	      this.prerelease = m[4].split('.').map((id) => {
+	        if (/^[0-9]+$/.test(id)) {
+	          const num = +id;
+	          if (num >= 0 && num < MAX_SAFE_INTEGER) {
+	            return num
+	          }
+	        }
+	        return id
+	      });
+	    }
+
+	    this.build = m[5] ? m[5].split('.') : [];
+	    this.format();
+	  }
+
+	  format () {
+	    this.version = `${this.major}.${this.minor}.${this.patch}`;
+	    if (this.prerelease.length) {
+	      this.version += `-${this.prerelease.join('.')}`;
+	    }
+	    return this.version
+	  }
+
+	  toString () {
+	    return this.version
+	  }
+
+	  compare (other) {
+	    debug('SemVer.compare', this.version, this.options, other);
+	    if (!(other instanceof SemVer)) {
+	      if (typeof other === 'string' && other === this.version) {
+	        return 0
+	      }
+	      other = new SemVer(other, this.options);
+	    }
+
+	    if (other.version === this.version) {
+	      return 0
+	    }
+
+	    return this.compareMain(other) || this.comparePre(other)
+	  }
+
+	  compareMain (other) {
+	    if (!(other instanceof SemVer)) {
+	      other = new SemVer(other, this.options);
+	    }
+
+	    if (this.major < other.major) {
+	      return -1
+	    }
+	    if (this.major > other.major) {
+	      return 1
+	    }
+	    if (this.minor < other.minor) {
+	      return -1
+	    }
+	    if (this.minor > other.minor) {
+	      return 1
+	    }
+	    if (this.patch < other.patch) {
+	      return -1
+	    }
+	    if (this.patch > other.patch) {
+	      return 1
+	    }
+	    return 0
+	  }
+
+	  comparePre (other) {
+	    if (!(other instanceof SemVer)) {
+	      other = new SemVer(other, this.options);
+	    }
+
+	    // NOT having a prerelease is > having one
+	    if (this.prerelease.length && !other.prerelease.length) {
+	      return -1
+	    } else if (!this.prerelease.length && other.prerelease.length) {
+	      return 1
+	    } else if (!this.prerelease.length && !other.prerelease.length) {
+	      return 0
+	    }
+
+	    let i = 0;
+	    do {
+	      const a = this.prerelease[i];
+	      const b = other.prerelease[i];
+	      debug('prerelease compare', i, a, b);
+	      if (a === undefined && b === undefined) {
+	        return 0
+	      } else if (b === undefined) {
+	        return 1
+	      } else if (a === undefined) {
+	        return -1
+	      } else if (a === b) {
+	        continue
+	      } else {
+	        return compareIdentifiers(a, b)
+	      }
+	    } while (++i)
+	  }
+
+	  compareBuild (other) {
+	    if (!(other instanceof SemVer)) {
+	      other = new SemVer(other, this.options);
+	    }
+
+	    let i = 0;
+	    do {
+	      const a = this.build[i];
+	      const b = other.build[i];
+	      debug('build compare', i, a, b);
+	      if (a === undefined && b === undefined) {
+	        return 0
+	      } else if (b === undefined) {
+	        return 1
+	      } else if (a === undefined) {
+	        return -1
+	      } else if (a === b) {
+	        continue
+	      } else {
+	        return compareIdentifiers(a, b)
+	      }
+	    } while (++i)
+	  }
+
+	  // preminor will bump the version up to the next minor release, and immediately
+	  // down to pre-release. premajor and prepatch work the same way.
+	  inc (release, identifier, identifierBase) {
+	    if (release.startsWith('pre')) {
+	      if (!identifier && identifierBase === false) {
+	        throw new Error('invalid increment argument: identifier is empty')
+	      }
+	      // Avoid an invalid semver results
+	      if (identifier) {
+	        const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
+	        if (!match || match[1] !== identifier) {
+	          throw new Error(`invalid identifier: ${identifier}`)
+	        }
+	      }
+	    }
+
+	    switch (release) {
+	      case 'premajor':
+	        this.prerelease.length = 0;
+	        this.patch = 0;
+	        this.minor = 0;
+	        this.major++;
+	        this.inc('pre', identifier, identifierBase);
+	        break
+	      case 'preminor':
+	        this.prerelease.length = 0;
+	        this.patch = 0;
+	        this.minor++;
+	        this.inc('pre', identifier, identifierBase);
+	        break
+	      case 'prepatch':
+	        // If this is already a prerelease, it will bump to the next version
+	        // drop any prereleases that might already exist, since they are not
+	        // relevant at this point.
+	        this.prerelease.length = 0;
+	        this.inc('patch', identifier, identifierBase);
+	        this.inc('pre', identifier, identifierBase);
+	        break
+	      // If the input is a non-prerelease version, this acts the same as
+	      // prepatch.
+	      case 'prerelease':
+	        if (this.prerelease.length === 0) {
+	          this.inc('patch', identifier, identifierBase);
+	        }
+	        this.inc('pre', identifier, identifierBase);
+	        break
+	      case 'release':
+	        if (this.prerelease.length === 0) {
+	          throw new Error(`version ${this.raw} is not a prerelease`)
+	        }
+	        this.prerelease.length = 0;
+	        break
+
+	      case 'major':
+	        // If this is a pre-major version, bump up to the same major version.
+	        // Otherwise increment major.
+	        // 1.0.0-5 bumps to 1.0.0
+	        // 1.1.0 bumps to 2.0.0
+	        if (
+	          this.minor !== 0 ||
+	          this.patch !== 0 ||
+	          this.prerelease.length === 0
+	        ) {
+	          this.major++;
+	        }
+	        this.minor = 0;
+	        this.patch = 0;
+	        this.prerelease = [];
+	        break
+	      case 'minor':
+	        // If this is a pre-minor version, bump up to the same minor version.
+	        // Otherwise increment minor.
+	        // 1.2.0-5 bumps to 1.2.0
+	        // 1.2.1 bumps to 1.3.0
+	        if (this.patch !== 0 || this.prerelease.length === 0) {
+	          this.minor++;
+	        }
+	        this.patch = 0;
+	        this.prerelease = [];
+	        break
+	      case 'patch':
+	        // If this is not a pre-release version, it will increment the patch.
+	        // If it is a pre-release it will bump up to the same patch version.
+	        // 1.2.0-5 patches to 1.2.0
+	        // 1.2.0 patches to 1.2.1
+	        if (this.prerelease.length === 0) {
+	          this.patch++;
+	        }
+	        this.prerelease = [];
+	        break
+	      // This probably shouldn't be used publicly.
+	      // 1.0.0 'pre' would become 1.0.0-0 which is the wrong direction.
+	      case 'pre': {
+	        const base = Number(identifierBase) ? 1 : 0;
+
+	        if (this.prerelease.length === 0) {
+	          this.prerelease = [base];
+	        } else {
+	          let i = this.prerelease.length;
+	          while (--i >= 0) {
+	            if (typeof this.prerelease[i] === 'number') {
+	              this.prerelease[i]++;
+	              i = -2;
+	            }
+	          }
+	          if (i === -1) {
+	            // didn't increment anything
+	            if (identifier === this.prerelease.join('.') && identifierBase === false) {
+	              throw new Error('invalid increment argument: identifier already exists')
+	            }
+	            this.prerelease.push(base);
+	          }
+	        }
+	        if (identifier) {
+	          // 1.2.0-beta.1 bumps to 1.2.0-beta.2,
+	          // 1.2.0-beta.fooblz or 1.2.0-beta bumps to 1.2.0-beta.0
+	          let prerelease = [identifier, base];
+	          if (identifierBase === false) {
+	            prerelease = [identifier];
+	          }
+	          if (isPrereleaseIdentifier(this.prerelease, identifier)) {
+	            const prereleaseBase = this.prerelease[identifier.split('.').length];
+	            if (isNaN(prereleaseBase)) {
+	              this.prerelease = prerelease;
+	            }
+	          } else {
+	            this.prerelease = prerelease;
+	          }
+	        }
+	        break
+	      }
+	      default:
+	        throw new Error(`invalid increment argument: ${release}`)
+	    }
+	    this.raw = this.format();
+	    if (this.build.length) {
+	      this.raw += `+${this.build.join('.')}`;
+	    }
+	    return this
+	  }
+	}
+
+	semver$1 = SemVer;
+	return semver$1;
+}
+
+var parse_1;
+var hasRequiredParse;
+
+function requireParse () {
+	if (hasRequiredParse) return parse_1;
+	hasRequiredParse = 1;
+
+	const SemVer = requireSemver$1();
+	const parse = (version, options, throwErrors = false) => {
+	  if (version instanceof SemVer) {
+	    return version
+	  }
+	  try {
+	    return new SemVer(version, options)
+	  } catch (er) {
+	    if (!throwErrors) {
+	      return null
+	    }
+	    throw er
+	  }
+	};
+
+	parse_1 = parse;
+	return parse_1;
+}
+
+var valid_1;
+var hasRequiredValid$1;
+
+function requireValid$1 () {
+	if (hasRequiredValid$1) return valid_1;
+	hasRequiredValid$1 = 1;
+
+	const parse = requireParse();
+	const valid = (version, options) => {
+	  const v = parse(version, options);
+	  return v ? v.version : null
+	};
+	valid_1 = valid;
+	return valid_1;
+}
+
+var clean_1;
+var hasRequiredClean;
+
+function requireClean () {
+	if (hasRequiredClean) return clean_1;
+	hasRequiredClean = 1;
+
+	const parse = requireParse();
+	const clean = (version, options) => {
+	  const s = parse(version.trim().replace(/^[=v]+/, ''), options);
+	  return s ? s.version : null
+	};
+	clean_1 = clean;
+	return clean_1;
+}
+
+var inc_1;
+var hasRequiredInc;
+
+function requireInc () {
+	if (hasRequiredInc) return inc_1;
+	hasRequiredInc = 1;
+
+	const SemVer = requireSemver$1();
+
+	const inc = (version, release, options, identifier, identifierBase) => {
+	  if (typeof (options) === 'string') {
+	    identifierBase = identifier;
+	    identifier = options;
+	    options = undefined;
+	  }
+
+	  try {
+	    return new SemVer(
+	      version instanceof SemVer ? version.version : version,
+	      options
+	    ).inc(release, identifier, identifierBase).version
+	  } catch (er) {
+	    return null
+	  }
+	};
+	inc_1 = inc;
+	return inc_1;
+}
+
+var diff_1;
+var hasRequiredDiff;
+
+function requireDiff () {
+	if (hasRequiredDiff) return diff_1;
+	hasRequiredDiff = 1;
+
+	const parse = requireParse();
+
+	const diff = (version1, version2) => {
+	  const v1 = parse(version1, null, true);
+	  const v2 = parse(version2, null, true);
+	  const comparison = v1.compare(v2);
+
+	  if (comparison === 0) {
+	    return null
+	  }
+
+	  const v1Higher = comparison > 0;
+	  const highVersion = v1Higher ? v1 : v2;
+	  const lowVersion = v1Higher ? v2 : v1;
+	  const highHasPre = !!highVersion.prerelease.length;
+	  const lowHasPre = !!lowVersion.prerelease.length;
+
+	  if (lowHasPre && !highHasPre) {
+	    // Going from prerelease -> no prerelease requires some special casing
+
+	    // If the low version has only a major, then it will always be a major
+	    // Some examples:
+	    // 1.0.0-1 -> 1.0.0
+	    // 1.0.0-1 -> 1.1.1
+	    // 1.0.0-1 -> 2.0.0
+	    if (!lowVersion.patch && !lowVersion.minor) {
+	      return 'major'
+	    }
+
+	    // If the main part has no difference
+	    if (lowVersion.compareMain(highVersion) === 0) {
+	      if (lowVersion.minor && !lowVersion.patch) {
+	        return 'minor'
+	      }
+	      return 'patch'
+	    }
+	  }
+
+	  // add the `pre` prefix if we are going to a prerelease version
+	  const prefix = highHasPre ? 'pre' : '';
+
+	  if (v1.major !== v2.major) {
+	    return prefix + 'major'
+	  }
+
+	  if (v1.minor !== v2.minor) {
+	    return prefix + 'minor'
+	  }
+
+	  if (v1.patch !== v2.patch) {
+	    return prefix + 'patch'
+	  }
+
+	  // high and low are prereleases
+	  return 'prerelease'
+	};
+
+	diff_1 = diff;
+	return diff_1;
+}
+
+var major_1;
+var hasRequiredMajor;
+
+function requireMajor () {
+	if (hasRequiredMajor) return major_1;
+	hasRequiredMajor = 1;
+
+	const SemVer = requireSemver$1();
+	const major = (a, loose) => new SemVer(a, loose).major;
+	major_1 = major;
+	return major_1;
+}
+
+var minor_1;
+var hasRequiredMinor;
+
+function requireMinor () {
+	if (hasRequiredMinor) return minor_1;
+	hasRequiredMinor = 1;
+
+	const SemVer = requireSemver$1();
+	const minor = (a, loose) => new SemVer(a, loose).minor;
+	minor_1 = minor;
+	return minor_1;
+}
+
+var patch_1;
+var hasRequiredPatch;
+
+function requirePatch () {
+	if (hasRequiredPatch) return patch_1;
+	hasRequiredPatch = 1;
+
+	const SemVer = requireSemver$1();
+	const patch = (a, loose) => new SemVer(a, loose).patch;
+	patch_1 = patch;
+	return patch_1;
+}
+
+var prerelease_1;
+var hasRequiredPrerelease;
+
+function requirePrerelease () {
+	if (hasRequiredPrerelease) return prerelease_1;
+	hasRequiredPrerelease = 1;
+
+	const parse = requireParse();
+	const prerelease = (version, options) => {
+	  const parsed = parse(version, options);
+	  return (parsed && parsed.prerelease.length) ? parsed.prerelease : null
+	};
+	prerelease_1 = prerelease;
+	return prerelease_1;
+}
+
+var compare_1;
+var hasRequiredCompare;
+
+function requireCompare () {
+	if (hasRequiredCompare) return compare_1;
+	hasRequiredCompare = 1;
+
+	const SemVer = requireSemver$1();
+	const compare = (a, b, loose) =>
+	  new SemVer(a, loose).compare(new SemVer(b, loose));
+
+	compare_1 = compare;
+	return compare_1;
+}
+
+var rcompare_1;
+var hasRequiredRcompare;
+
+function requireRcompare () {
+	if (hasRequiredRcompare) return rcompare_1;
+	hasRequiredRcompare = 1;
+
+	const compare = requireCompare();
+	const rcompare = (a, b, loose) => compare(b, a, loose);
+	rcompare_1 = rcompare;
+	return rcompare_1;
+}
+
+var compareLoose_1;
+var hasRequiredCompareLoose;
+
+function requireCompareLoose () {
+	if (hasRequiredCompareLoose) return compareLoose_1;
+	hasRequiredCompareLoose = 1;
+
+	const compare = requireCompare();
+	const compareLoose = (a, b) => compare(a, b, true);
+	compareLoose_1 = compareLoose;
+	return compareLoose_1;
+}
+
+var compareBuild_1;
+var hasRequiredCompareBuild;
+
+function requireCompareBuild () {
+	if (hasRequiredCompareBuild) return compareBuild_1;
+	hasRequiredCompareBuild = 1;
+
+	const SemVer = requireSemver$1();
+	const compareBuild = (a, b, loose) => {
+	  const versionA = new SemVer(a, loose);
+	  const versionB = new SemVer(b, loose);
+	  return versionA.compare(versionB) || versionA.compareBuild(versionB)
+	};
+	compareBuild_1 = compareBuild;
+	return compareBuild_1;
+}
+
+var sort_1;
+var hasRequiredSort;
+
+function requireSort () {
+	if (hasRequiredSort) return sort_1;
+	hasRequiredSort = 1;
+
+	const compareBuild = requireCompareBuild();
+	const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
+	sort_1 = sort;
+	return sort_1;
+}
+
+var rsort_1;
+var hasRequiredRsort;
+
+function requireRsort () {
+	if (hasRequiredRsort) return rsort_1;
+	hasRequiredRsort = 1;
+
+	const compareBuild = requireCompareBuild();
+	const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
+	rsort_1 = rsort;
+	return rsort_1;
+}
+
+var gt_1;
+var hasRequiredGt;
+
+function requireGt () {
+	if (hasRequiredGt) return gt_1;
+	hasRequiredGt = 1;
+
+	const compare = requireCompare();
+	const gt = (a, b, loose) => compare(a, b, loose) > 0;
+	gt_1 = gt;
+	return gt_1;
+}
+
+var lt_1;
+var hasRequiredLt;
+
+function requireLt () {
+	if (hasRequiredLt) return lt_1;
+	hasRequiredLt = 1;
+
+	const compare = requireCompare();
+	const lt = (a, b, loose) => compare(a, b, loose) < 0;
+	lt_1 = lt;
+	return lt_1;
+}
+
+var eq_1$1;
+var hasRequiredEq$1;
+
+function requireEq$1 () {
+	if (hasRequiredEq$1) return eq_1$1;
+	hasRequiredEq$1 = 1;
+
+	const compare = requireCompare();
+	const eq = (a, b, loose) => compare(a, b, loose) === 0;
+	eq_1$1 = eq;
+	return eq_1$1;
+}
+
+var neq_1;
+var hasRequiredNeq;
+
+function requireNeq () {
+	if (hasRequiredNeq) return neq_1;
+	hasRequiredNeq = 1;
+
+	const compare = requireCompare();
+	const neq = (a, b, loose) => compare(a, b, loose) !== 0;
+	neq_1 = neq;
+	return neq_1;
+}
+
+var gte_1;
+var hasRequiredGte;
+
+function requireGte () {
+	if (hasRequiredGte) return gte_1;
+	hasRequiredGte = 1;
+
+	const compare = requireCompare();
+	const gte = (a, b, loose) => compare(a, b, loose) >= 0;
+	gte_1 = gte;
+	return gte_1;
+}
+
+var lte_1;
+var hasRequiredLte;
+
+function requireLte () {
+	if (hasRequiredLte) return lte_1;
+	hasRequiredLte = 1;
+
+	const compare = requireCompare();
+	const lte = (a, b, loose) => compare(a, b, loose) <= 0;
+	lte_1 = lte;
+	return lte_1;
+}
+
+var cmp_1;
+var hasRequiredCmp;
+
+function requireCmp () {
+	if (hasRequiredCmp) return cmp_1;
+	hasRequiredCmp = 1;
+
+	const eq = requireEq$1();
+	const neq = requireNeq();
+	const gt = requireGt();
+	const gte = requireGte();
+	const lt = requireLt();
+	const lte = requireLte();
+
+	const cmp = (a, op, b, loose) => {
+	  switch (op) {
+	    case '===':
+	      if (typeof a === 'object') {
+	        a = a.version;
+	      }
+	      if (typeof b === 'object') {
+	        b = b.version;
+	      }
+	      return a === b
+
+	    case '!==':
+	      if (typeof a === 'object') {
+	        a = a.version;
+	      }
+	      if (typeof b === 'object') {
+	        b = b.version;
+	      }
+	      return a !== b
+
+	    case '':
+	    case '=':
+	    case '==':
+	      return eq(a, b, loose)
+
+	    case '!=':
+	      return neq(a, b, loose)
+
+	    case '>':
+	      return gt(a, b, loose)
+
+	    case '>=':
+	      return gte(a, b, loose)
+
+	    case '<':
+	      return lt(a, b, loose)
+
+	    case '<=':
+	      return lte(a, b, loose)
+
+	    default:
+	      throw new TypeError(`Invalid operator: ${op}`)
+	  }
+	};
+	cmp_1 = cmp;
+	return cmp_1;
+}
+
+var coerce_1;
+var hasRequiredCoerce;
+
+function requireCoerce () {
+	if (hasRequiredCoerce) return coerce_1;
+	hasRequiredCoerce = 1;
+
+	const SemVer = requireSemver$1();
+	const parse = requireParse();
+	const { safeRe: re, t } = requireRe();
+
+	const coerce = (version, options) => {
+	  if (version instanceof SemVer) {
+	    return version
+	  }
+
+	  if (typeof version === 'number') {
+	    version = String(version);
+	  }
+
+	  if (typeof version !== 'string') {
+	    return null
+	  }
+
+	  options = options || {};
+
+	  let match = null;
+	  if (!options.rtl) {
+	    match = version.match(options.includePrerelease ? re[t.COERCEFULL] : re[t.COERCE]);
+	  } else {
+	    // Find the right-most coercible string that does not share
+	    // a terminus with a more left-ward coercible string.
+	    // Eg, '1.2.3.4' wants to coerce '2.3.4', not '3.4' or '4'
+	    // With includePrerelease option set, '1.2.3.4-rc' wants to coerce '2.3.4-rc', not '2.3.4'
+	    //
+	    // Walk through the string checking with a /g regexp
+	    // Manually set the index so as to pick up overlapping matches.
+	    // Stop when we get a match that ends at the string end, since no
+	    // coercible string can be more right-ward without the same terminus.
+	    const coerceRtlRegex = options.includePrerelease ? re[t.COERCERTLFULL] : re[t.COERCERTL];
+	    let next;
+	    while ((next = coerceRtlRegex.exec(version)) &&
+	        (!match || match.index + match[0].length !== version.length)
+	    ) {
+	      if (!match ||
+	            next.index + next[0].length !== match.index + match[0].length) {
+	        match = next;
+	      }
+	      coerceRtlRegex.lastIndex = next.index + next[1].length + next[2].length;
+	    }
+	    // leave it in a clean state
+	    coerceRtlRegex.lastIndex = -1;
+	  }
+
+	  if (match === null) {
+	    return null
+	  }
+
+	  const major = match[2];
+	  const minor = match[3] || '0';
+	  const patch = match[4] || '0';
+	  const prerelease = options.includePrerelease && match[5] ? `-${match[5]}` : '';
+	  const build = options.includePrerelease && match[6] ? `+${match[6]}` : '';
+
+	  return parse(`${major}.${minor}.${patch}${prerelease}${build}`, options)
+	};
+	coerce_1 = coerce;
+	return coerce_1;
+}
+
+var truncate_1;
+var hasRequiredTruncate;
+
+function requireTruncate () {
+	if (hasRequiredTruncate) return truncate_1;
+	hasRequiredTruncate = 1;
+
+	const parse = requireParse();
+	const constants = requireConstants$2();
+	const SemVer = requireSemver$1();
+
+	const truncate = (version, truncation, options) => {
+	  if (!constants.RELEASE_TYPES.includes(truncation)) {
+	    return null
+	  }
+
+	  const clonedVersion = cloneInputVersion(version, options);
+	  return clonedVersion && doTruncation(clonedVersion, truncation)
+	};
+
+	const cloneInputVersion = (version, options) => {
+	  const versionStringToParse = (
+	    version instanceof SemVer ? version.version : version
+	  );
+
+	  return parse(versionStringToParse, options)
+	};
+
+	const doTruncation = (version, truncation) => {
+	  if (isPrerelease(truncation)) {
+	    return version.version
+	  }
+
+	  version.prerelease = [];
+
+	  switch (truncation) {
+	    case 'major':
+	      version.minor = 0;
+	      version.patch = 0;
+	      break
+	    case 'minor':
+	      version.patch = 0;
+	      break
+	  }
+
+	  return version.format()
+	};
+
+	const isPrerelease = (type) => {
+	  return type.startsWith('pre')
+	};
+
+	truncate_1 = truncate;
+	return truncate_1;
+}
+
+var lrucache;
+var hasRequiredLrucache;
+
+function requireLrucache () {
+	if (hasRequiredLrucache) return lrucache;
+	hasRequiredLrucache = 1;
+
+	class LRUCache {
+	  constructor () {
+	    this.max = 1000;
+	    this.map = new Map();
+	  }
+
+	  get (key) {
+	    const value = this.map.get(key);
+	    if (value === undefined) {
+	      return undefined
+	    } else {
+	      // Remove the key from the map and add it to the end
+	      this.map.delete(key);
+	      this.map.set(key, value);
+	      return value
+	    }
+	  }
+
+	  delete (key) {
+	    return this.map.delete(key)
+	  }
+
+	  set (key, value) {
+	    const deleted = this.delete(key);
+
+	    if (!deleted && value !== undefined) {
+	      // If cache is full, delete the least recently used item
+	      if (this.map.size >= this.max) {
+	        const firstKey = this.map.keys().next().value;
+	        this.delete(firstKey);
+	      }
+
+	      this.map.set(key, value);
+	    }
+
+	    return this
+	  }
+	}
+
+	lrucache = LRUCache;
+	return lrucache;
+}
+
+var range$1;
+var hasRequiredRange;
+
+function requireRange () {
+	if (hasRequiredRange) return range$1;
+	hasRequiredRange = 1;
+
+	const SPACE_CHARACTERS = /\s+/g;
+
+	// hoisted class for cyclic dependency
+	class Range {
+	  constructor (range, options) {
+	    options = parseOptions(options);
+
+	    if (range instanceof Range) {
+	      if (
+	        range.loose === !!options.loose &&
+	        range.includePrerelease === !!options.includePrerelease
+	      ) {
+	        return range
+	      } else {
+	        return new Range(range.raw, options)
+	      }
+	    }
+
+	    if (range instanceof Comparator) {
+	      // just put it in the set and return
+	      this.raw = range.value;
+	      this.set = [[range]];
+	      this.formatted = undefined;
+	      return this
+	    }
+
+	    this.options = options;
+	    this.loose = !!options.loose;
+	    this.includePrerelease = !!options.includePrerelease;
+
+	    // First reduce all whitespace as much as possible so we do not have to rely
+	    // on potentially slow regexes like \s*. This is then stored and used for
+	    // future error messages as well.
+	    this.raw = range.trim().replace(SPACE_CHARACTERS, ' ');
+
+	    // First, split on ||
+	    this.set = this.raw
+	      .split('||')
+	      // map the range to a 2d array of comparators
+	      .map(r => this.parseRange(r.trim()))
+	      // throw out any comparator lists that are empty
+	      // this generally means that it was not a valid range, which is allowed
+	      // in loose mode, but will still throw if the WHOLE range is invalid.
+	      .filter(c => c.length);
+
+	    if (!this.set.length) {
+	      throw new TypeError(`Invalid SemVer Range: ${this.raw}`)
+	    }
+
+	    // if we have any that are not the null set, throw out null sets.
+	    if (this.set.length > 1) {
+	      // keep the first one, in case they're all null sets
+	      const first = this.set[0];
+	      this.set = this.set.filter(c => !isNullSet(c[0]));
+	      if (this.set.length === 0) {
+	        this.set = [first];
+	      } else if (this.set.length > 1) {
+	        // if we have any that are *, then the range is just *
+	        for (const c of this.set) {
+	          if (c.length === 1 && isAny(c[0])) {
+	            this.set = [c];
+	            break
+	          }
+	        }
+	      }
+	    }
+
+	    this.formatted = undefined;
+	  }
+
+	  get range () {
+	    if (this.formatted === undefined) {
+	      this.formatted = '';
+	      for (let i = 0; i < this.set.length; i++) {
+	        if (i > 0) {
+	          this.formatted += '||';
+	        }
+	        const comps = this.set[i];
+	        for (let k = 0; k < comps.length; k++) {
+	          if (k > 0) {
+	            this.formatted += ' ';
+	          }
+	          this.formatted += comps[k].toString().trim();
+	        }
+	      }
+	    }
+	    return this.formatted
+	  }
+
+	  format () {
+	    return this.range
+	  }
+
+	  toString () {
+	    return this.range
+	  }
+
+	  parseRange (range) {
+	    // strip build metadata so it can't bleed into the version
+	    range = range.replace(BUILDSTRIPRE, '');
+
+	    // memoize range parsing for performance.
+	    // this is a very hot path, and fully deterministic.
+	    const memoOpts =
+	      (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) |
+	      (this.options.loose && FLAG_LOOSE);
+	    const memoKey = memoOpts + ':' + range;
+	    const cached = cache.get(memoKey);
+	    if (cached) {
+	      return cached
+	    }
+
+	    const loose = this.options.loose;
+	    // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
+	    const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
+	    range = range.replace(hr, hyphenReplace(this.options.includePrerelease));
+	    debug('hyphen replace', range);
+
+	    // `> 1.2.3 < 1.2.5` => `>1.2.3 <1.2.5`
+	    range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
+	    debug('comparator trim', range);
+
+	    // `~ 1.2.3` => `~1.2.3`
+	    range = range.replace(re[t.TILDETRIM], tildeTrimReplace);
+	    debug('tilde trim', range);
+
+	    // `^ 1.2.3` => `^1.2.3`
+	    range = range.replace(re[t.CARETTRIM], caretTrimReplace);
+	    debug('caret trim', range);
+
+	    // At this point, the range is completely trimmed and
+	    // ready to be split into comparators.
+
+	    let rangeList = range
+	      .split(' ')
+	      .map(comp => parseComparator(comp, this.options))
+	      .join(' ')
+	      .split(/\s+/)
+	      // >=0.0.0 is equivalent to *
+	      .map(comp => replaceGTE0(comp, this.options));
+
+	    if (loose) {
+	      // in loose mode, throw out any that are not valid comparators
+	      rangeList = rangeList.filter(comp => {
+	        debug('loose invalid filter', comp, this.options);
+	        return !!comp.match(re[t.COMPARATORLOOSE])
+	      });
+	    }
+	    debug('range list', rangeList);
+
+	    // if any comparators are the null set, then replace with JUST null set
+	    // if more than one comparator, remove any * comparators
+	    // also, don't include the same comparator more than once
+	    const rangeMap = new Map();
+	    const comparators = rangeList.map(comp => new Comparator(comp, this.options));
+	    for (const comp of comparators) {
+	      if (isNullSet(comp)) {
+	        return [comp]
+	      }
+	      rangeMap.set(comp.value, comp);
+	    }
+	    if (rangeMap.size > 1 && rangeMap.has('')) {
+	      rangeMap.delete('');
+	    }
+
+	    const result = [...rangeMap.values()];
+	    cache.set(memoKey, result);
+	    return result
+	  }
+
+	  intersects (range, options) {
+	    if (!(range instanceof Range)) {
+	      throw new TypeError('a Range is required')
+	    }
+
+	    return this.set.some((thisComparators) => {
+	      return (
+	        isSatisfiable(thisComparators, options) &&
+	        range.set.some((rangeComparators) => {
+	          return (
+	            isSatisfiable(rangeComparators, options) &&
+	            thisComparators.every((thisComparator) => {
+	              return rangeComparators.every((rangeComparator) => {
+	                return thisComparator.intersects(rangeComparator, options)
+	              })
+	            })
+	          )
+	        })
+	      )
+	    })
+	  }
+
+	  // if ANY of the sets match ALL of its comparators, then pass
+	  test (version) {
+	    if (!version) {
+	      return false
+	    }
+
+	    if (typeof version === 'string') {
+	      try {
+	        version = new SemVer(version, this.options);
+	      } catch (er) {
+	        return false
+	      }
+	    }
+
+	    for (let i = 0; i < this.set.length; i++) {
+	      if (testSet(this.set[i], version, this.options)) {
+	        return true
+	      }
+	    }
+	    return false
+	  }
+	}
+
+	range$1 = Range;
+
+	const LRU = requireLrucache();
+	const cache = new LRU();
+
+	const parseOptions = requireParseOptions();
+	const Comparator = requireComparator();
+	const debug = requireDebug();
+	const SemVer = requireSemver$1();
+	const {
+	  safeRe: re,
+	  src,
+	  t,
+	  comparatorTrimReplace,
+	  tildeTrimReplace,
+	  caretTrimReplace,
+	} = requireRe();
+	const { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = requireConstants$2();
+
+	// unbounded global build-metadata stripper used by parseRange
+	const BUILDSTRIPRE = new RegExp(src[t.BUILD], 'g');
+
+	const isNullSet = c => c.value === '<0.0.0-0';
+	const isAny = c => c.value === '';
+
+	// take a set of comparators and determine whether there
+	// exists a version which can satisfy it
+	const isSatisfiable = (comparators, options) => {
+	  let result = true;
+	  const remainingComparators = comparators.slice();
+	  let testComparator = remainingComparators.pop();
+
+	  while (result && remainingComparators.length) {
+	    result = remainingComparators.every((otherComparator) => {
+	      return testComparator.intersects(otherComparator, options)
+	    });
+
+	    testComparator = remainingComparators.pop();
+	  }
+
+	  return result
+	};
+
+	// comprised of xranges, tildes, stars, and gtlt's at this point.
+	// already replaced the hyphen ranges
+	// turn into a set of JUST comparators.
+	const parseComparator = (comp, options) => {
+	  comp = comp.replace(re[t.BUILD], '');
+	  debug('comp', comp, options);
+	  comp = replaceCarets(comp, options);
+	  debug('caret', comp);
+	  comp = replaceTildes(comp, options);
+	  debug('tildes', comp);
+	  comp = replaceXRanges(comp, options);
+	  debug('xrange', comp);
+	  comp = replaceStars(comp, options);
+	  debug('stars', comp);
+	  return comp
+	};
+
+	const isX = id => !id || id.toLowerCase() === 'x' || id === '*';
+
+	const invalidXRangeOrder = (M, m, p) => (
+	  (isX(M) && !isX(m)) ||
+	  (isX(m) && p && !isX(p))
+	);
+
+	// ~, ~> --> * (any, kinda silly)
+	// ~2, ~2.x, ~2.x.x, ~>2, ~>2.x ~>2.x.x --> >=2.0.0 <3.0.0-0
+	// ~2.0, ~2.0.x, ~>2.0, ~>2.0.x --> >=2.0.0 <2.1.0-0
+	// ~1.2, ~1.2.x, ~>1.2, ~>1.2.x --> >=1.2.0 <1.3.0-0
+	// ~1.2.3, ~>1.2.3 --> >=1.2.3 <1.3.0-0
+	// ~1.2.0, ~>1.2.0 --> >=1.2.0 <1.3.0-0
+	// ~0.0.1 --> >=0.0.1 <0.1.0-0
+	const replaceTildes = (comp, options) => {
+	  return comp
+	    .trim()
+	    .split(/\s+/)
+	    .map((c) => replaceTilde(c, options))
+	    .join(' ')
+	};
+
+	const replaceTilde = (comp, options) => {
+	  const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
+	  // if we're including prereleases in the match, then the lower bound is
+	  // -0, the lowest possible prerelease value, just like x-ranges and carets.
+	  // this keeps `~1.2` equivalent to the `1.2.x` x-range it's documented as.
+	  const z = options.includePrerelease ? '-0' : '';
+	  return comp.replace(r, (_, M, m, p, pr) => {
+	    debug('tilde', comp, _, M, m, p, pr);
+	    let ret;
+
+	    if (isX(M)) {
+	      ret = '';
+	    } else if (isX(m)) {
+	      ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
+	    } else if (isX(p)) {
+	      // ~1.2 == >=1.2.0 <1.3.0-0
+	      ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
+	    } else if (pr) {
+	      debug('replaceTilde pr', pr);
+	      ret = `>=${M}.${m}.${p}-${pr
+	      } <${M}.${+m + 1}.0-0`;
+	    } else {
+	      // ~1.2.3 == >=1.2.3 <1.3.0-0
+	      ret = `>=${M}.${m}.${p
+	      } <${M}.${+m + 1}.0-0`;
+	    }
+
+	    debug('tilde return', ret);
+	    return ret
+	  })
+	};
+
+	// ^ --> * (any, kinda silly)
+	// ^2, ^2.x, ^2.x.x --> >=2.0.0 <3.0.0-0
+	// ^2.0, ^2.0.x --> >=2.0.0 <3.0.0-0
+	// ^1.2, ^1.2.x --> >=1.2.0 <2.0.0-0
+	// ^1.2.3 --> >=1.2.3 <2.0.0-0
+	// ^1.2.0 --> >=1.2.0 <2.0.0-0
+	// ^0.0.1 --> >=0.0.1 <0.0.2-0
+	// ^0.1.0 --> >=0.1.0 <0.2.0-0
+	const replaceCarets = (comp, options) => {
+	  return comp
+	    .trim()
+	    .split(/\s+/)
+	    .map((c) => replaceCaret(c, options))
+	    .join(' ')
+	};
+
+	const replaceCaret = (comp, options) => {
+	  debug('caret', comp, options);
+	  const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
+	  const z = options.includePrerelease ? '-0' : '';
+	  return comp.replace(r, (_, M, m, p, pr) => {
+	    debug('caret', comp, _, M, m, p, pr);
+	    let ret;
+
+	    if (isX(M)) {
+	      ret = '';
+	    } else if (isX(m)) {
+	      ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
+	    } else if (isX(p)) {
+	      if (M === '0') {
+	        ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
+	      } else {
+	        ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`;
+	      }
+	    } else if (pr) {
+	      debug('replaceCaret pr', pr);
+	      if (M === '0') {
+	        if (m === '0') {
+	          ret = `>=${M}.${m}.${p}-${pr
+	          } <${M}.${m}.${+p + 1}-0`;
+	        } else {
+	          ret = `>=${M}.${m}.${p}-${pr
+	          } <${M}.${+m + 1}.0-0`;
+	        }
+	      } else {
+	        ret = `>=${M}.${m}.${p}-${pr
+	        } <${+M + 1}.0.0-0`;
+	      }
+	    } else {
+	      debug('no pr');
+	      if (M === '0') {
+	        if (m === '0') {
+	          ret = `>=${M}.${m}.${p
+	          } <${M}.${m}.${+p + 1}-0`;
+	        } else {
+	          ret = `>=${M}.${m}.${p
+	          } <${M}.${+m + 1}.0-0`;
+	        }
+	      } else {
+	        ret = `>=${M}.${m}.${p
+	        } <${+M + 1}.0.0-0`;
+	      }
+	    }
+
+	    debug('caret return', ret);
+	    return ret
+	  })
+	};
+
+	const replaceXRanges = (comp, options) => {
+	  debug('replaceXRanges', comp, options);
+	  return comp
+	    .split(/\s+/)
+	    .map((c) => replaceXRange(c, options))
+	    .join(' ')
+	};
+
+	const replaceXRange = (comp, options) => {
+	  comp = comp.trim();
+	  const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
+	  return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
+	    debug('xRange', comp, ret, gtlt, M, m, p, pr);
+	    if (invalidXRangeOrder(M, m, p)) {
+	      return comp
+	    }
+
+	    const xM = isX(M);
+	    const xm = xM || isX(m);
+	    const xp = xm || isX(p);
+	    const anyX = xp;
+
+	    if (gtlt === '=' && anyX) {
+	      gtlt = '';
+	    }
+
+	    // if we're including prereleases in the match, then we need
+	    // to fix this to -0, the lowest possible prerelease value
+	    pr = options.includePrerelease ? '-0' : '';
+
+	    if (xM) {
+	      if (gtlt === '>' || gtlt === '<') {
+	        // nothing is allowed
+	        ret = '<0.0.0-0';
+	      } else {
+	        // nothing is forbidden
+	        ret = '*';
+	      }
+	    } else if (gtlt && anyX) {
+	      // we know patch is an x, because we have any x at all.
+	      // replace X with 0
+	      if (xm) {
+	        m = 0;
+	      }
+	      p = 0;
+
+	      if (gtlt === '>') {
+	        // >1 => >=2.0.0
+	        // >1.2 => >=1.3.0
+	        gtlt = '>=';
+	        if (xm) {
+	          M = +M + 1;
+	          m = 0;
+	          p = 0;
+	        } else {
+	          m = +m + 1;
+	          p = 0;
+	        }
+	      } else if (gtlt === '<=') {
+	        // <=0.7.x is actually <0.8.0, since any 0.7.x should
+	        // pass.  Similarly, <=7.x is actually <8.0.0, etc.
+	        gtlt = '<';
+	        if (xm) {
+	          M = +M + 1;
+	        } else {
+	          m = +m + 1;
+	        }
+	      }
+
+	      if (gtlt === '<') {
+	        pr = '-0';
+	      }
+
+	      ret = `${gtlt + M}.${m}.${p}${pr}`;
+	    } else if (xm) {
+	      ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`;
+	    } else if (xp) {
+	      ret = `>=${M}.${m}.0${pr
+	      } <${M}.${+m + 1}.0-0`;
+	    }
+
+	    debug('xRange return', ret);
+
+	    return ret
+	  })
+	};
+
+	// Because * is AND-ed with everything else in the comparator,
+	// and '' means "any version", just remove the *s entirely.
+	const replaceStars = (comp, options) => {
+	  debug('replaceStars', comp, options);
+	  // Looseness is ignored here.  star is always as loose as it gets!
+	  return comp
+	    .trim()
+	    .replace(re[t.STAR], '')
+	};
+
+	const replaceGTE0 = (comp, options) => {
+	  debug('replaceGTE0', comp, options);
+	  return comp
+	    .trim()
+	    .replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], '')
+	};
+
+	// This function is passed to string.replace(re[t.HYPHENRANGE])
+	// M, m, patch, prerelease, build
+	// 1.2 - 3.4.5 => >=1.2.0 <=3.4.5
+	// 1.2.3 - 3.4 => >=1.2.0 <3.5.0-0 Any 3.4.x will do
+	// 1.2 - 3.4 => >=1.2.0 <3.5.0-0
+	// TODO build?
+	const hyphenReplace = incPr => ($0,
+	  from, fM, fm, fp, fpr, fb,
+	  to, tM, tm, tp, tpr) => {
+	  if (isX(fM)) {
+	    from = '';
+	  } else if (isX(fm)) {
+	    from = `>=${fM}.0.0${incPr ? '-0' : ''}`;
+	  } else if (isX(fp)) {
+	    from = `>=${fM}.${fm}.0${incPr ? '-0' : ''}`;
+	  } else if (fpr) {
+	    from = `>=${from}`;
+	  } else {
+	    from = `>=${from}${incPr ? '-0' : ''}`;
+	  }
+
+	  if (isX(tM)) {
+	    to = '';
+	  } else if (isX(tm)) {
+	    to = `<${+tM + 1}.0.0-0`;
+	  } else if (isX(tp)) {
+	    to = `<${tM}.${+tm + 1}.0-0`;
+	  } else if (tpr) {
+	    to = `<=${tM}.${tm}.${tp}-${tpr}`;
+	  } else if (incPr) {
+	    to = `<${tM}.${tm}.${+tp + 1}-0`;
+	  } else {
+	    to = `<=${to}`;
+	  }
+
+	  return `${from} ${to}`.trim()
+	};
+
+	const testSet = (set, version, options) => {
+	  for (let i = 0; i < set.length; i++) {
+	    if (!set[i].test(version)) {
+	      return false
+	    }
+	  }
+
+	  if (version.prerelease.length && !options.includePrerelease) {
+	    // Find the set of versions that are allowed to have prereleases
+	    // For example, ^1.2.3-pr.1 desugars to >=1.2.3-pr.1 <2.0.0
+	    // That should allow `1.2.3-pr.2` to pass.
+	    // However, `1.2.4-alpha.notready` should NOT be allowed,
+	    // even though it's within the range set by the comparators.
+	    for (let i = 0; i < set.length; i++) {
+	      debug(set[i].semver);
+	      if (set[i].semver === Comparator.ANY) {
+	        continue
+	      }
+
+	      if (set[i].semver.prerelease.length > 0) {
+	        const allowed = set[i].semver;
+	        if (allowed.major === version.major &&
+	            allowed.minor === version.minor &&
+	            allowed.patch === version.patch) {
+	          return true
+	        }
+	      }
+	    }
+
+	    // Version has a -pre, but it's not one of the ones we like.
+	    return false
+	  }
+
+	  return true
+	};
+	return range$1;
+}
+
+var comparator;
+var hasRequiredComparator;
+
+function requireComparator () {
+	if (hasRequiredComparator) return comparator;
+	hasRequiredComparator = 1;
+
+	const ANY = Symbol('SemVer ANY');
+	// hoisted class for cyclic dependency
+	class Comparator {
+	  static get ANY () {
+	    return ANY
+	  }
+
+	  constructor (comp, options) {
+	    options = parseOptions(options);
+
+	    if (comp instanceof Comparator) {
+	      if (comp.loose === !!options.loose) {
+	        return comp
+	      } else {
+	        comp = comp.value;
+	      }
+	    }
+
+	    comp = comp.trim().split(/\s+/).join(' ');
+	    debug('comparator', comp, options);
+	    this.options = options;
+	    this.loose = !!options.loose;
+	    this.parse(comp);
+
+	    if (this.semver === ANY) {
+	      this.value = '';
+	    } else {
+	      this.value = this.operator + this.semver.version;
+	    }
+
+	    debug('comp', this);
+	  }
+
+	  parse (comp) {
+	    const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
+	    const m = comp.match(r);
+
+	    if (!m) {
+	      throw new TypeError(`Invalid comparator: ${comp}`)
+	    }
+
+	    this.operator = m[1] !== undefined ? m[1] : '';
+	    if (this.operator === '=') {
+	      this.operator = '';
+	    }
+
+	    // if it literally is just '>' or '' then allow anything.
+	    if (!m[2]) {
+	      this.semver = ANY;
+	    } else {
+	      this.semver = new SemVer(m[2], this.options.loose);
+	    }
+	  }
+
+	  toString () {
+	    return this.value
+	  }
+
+	  test (version) {
+	    debug('Comparator.test', version, this.options.loose);
+
+	    if (this.semver === ANY || version === ANY) {
+	      return true
+	    }
+
+	    if (typeof version === 'string') {
+	      try {
+	        version = new SemVer(version, this.options);
+	      } catch (er) {
+	        return false
+	      }
+	    }
+
+	    return cmp(version, this.operator, this.semver, this.options)
+	  }
+
+	  intersects (comp, options) {
+	    if (!(comp instanceof Comparator)) {
+	      throw new TypeError('a Comparator is required')
+	    }
+
+	    if (this.operator === '') {
+	      if (this.value === '') {
+	        return true
+	      }
+	      return new Range(comp.value, options).test(this.value)
+	    } else if (comp.operator === '') {
+	      if (comp.value === '') {
+	        return true
+	      }
+	      return new Range(this.value, options).test(comp.semver)
+	    }
+
+	    options = parseOptions(options);
+
+	    // Special cases where nothing can possibly be lower
+	    if (options.includePrerelease &&
+	      (this.value === '<0.0.0-0' || comp.value === '<0.0.0-0')) {
+	      return false
+	    }
+	    if (!options.includePrerelease &&
+	      (this.value.startsWith('<0.0.0') || comp.value.startsWith('<0.0.0'))) {
+	      return false
+	    }
+
+	    // Same direction increasing (> or >=)
+	    if (this.operator.startsWith('>') && comp.operator.startsWith('>')) {
+	      return true
+	    }
+	    // Same direction decreasing (< or <=)
+	    if (this.operator.startsWith('<') && comp.operator.startsWith('<')) {
+	      return true
+	    }
+	    // same SemVer and both sides are inclusive (<= or >=)
+	    if (
+	      (this.semver.version === comp.semver.version) &&
+	      this.operator.includes('=') && comp.operator.includes('=')) {
+	      return true
+	    }
+	    // opposite directions less than
+	    if (cmp(this.semver, '<', comp.semver, options) &&
+	      this.operator.startsWith('>') && comp.operator.startsWith('<')) {
+	      return true
+	    }
+	    // opposite directions greater than
+	    if (cmp(this.semver, '>', comp.semver, options) &&
+	      this.operator.startsWith('<') && comp.operator.startsWith('>')) {
+	      return true
+	    }
+	    return false
+	  }
+	}
+
+	comparator = Comparator;
+
+	const parseOptions = requireParseOptions();
+	const { safeRe: re, t } = requireRe();
+	const cmp = requireCmp();
+	const debug = requireDebug();
+	const SemVer = requireSemver$1();
+	const Range = requireRange();
+	return comparator;
+}
+
+var satisfies_1;
+var hasRequiredSatisfies;
+
+function requireSatisfies () {
+	if (hasRequiredSatisfies) return satisfies_1;
+	hasRequiredSatisfies = 1;
+
+	const Range = requireRange();
+	const satisfies = (version, range, options) => {
+	  try {
+	    range = new Range(range, options);
+	  } catch (er) {
+	    return false
+	  }
+	  return range.test(version)
+	};
+	satisfies_1 = satisfies;
+	return satisfies_1;
+}
+
+var toComparators_1;
+var hasRequiredToComparators;
+
+function requireToComparators () {
+	if (hasRequiredToComparators) return toComparators_1;
+	hasRequiredToComparators = 1;
+
+	const Range = requireRange();
+
+	// Mostly just for testing and legacy API reasons
+	const toComparators = (range, options) =>
+	  new Range(range, options).set
+	    .map(comp => comp.map(c => c.value).join(' ').trim().split(' '));
+
+	toComparators_1 = toComparators;
+	return toComparators_1;
+}
+
+var maxSatisfying_1;
+var hasRequiredMaxSatisfying;
+
+function requireMaxSatisfying () {
+	if (hasRequiredMaxSatisfying) return maxSatisfying_1;
+	hasRequiredMaxSatisfying = 1;
+
+	const SemVer = requireSemver$1();
+	const Range = requireRange();
+
+	const maxSatisfying = (versions, range, options) => {
+	  let max = null;
+	  let maxSV = null;
+	  let rangeObj = null;
+	  try {
+	    rangeObj = new Range(range, options);
+	  } catch (er) {
+	    return null
+	  }
+	  versions.forEach((v) => {
+	    if (rangeObj.test(v)) {
+	      // satisfies(v, range, options)
+	      if (!max || maxSV.compare(v) === -1) {
+	        // compare(max, v, true)
+	        max = v;
+	        maxSV = new SemVer(max, options);
+	      }
+	    }
+	  });
+	  return max
+	};
+	maxSatisfying_1 = maxSatisfying;
+	return maxSatisfying_1;
+}
+
+var minSatisfying_1;
+var hasRequiredMinSatisfying;
+
+function requireMinSatisfying () {
+	if (hasRequiredMinSatisfying) return minSatisfying_1;
+	hasRequiredMinSatisfying = 1;
+
+	const SemVer = requireSemver$1();
+	const Range = requireRange();
+	const minSatisfying = (versions, range, options) => {
+	  let min = null;
+	  let minSV = null;
+	  let rangeObj = null;
+	  try {
+	    rangeObj = new Range(range, options);
+	  } catch (er) {
+	    return null
+	  }
+	  versions.forEach((v) => {
+	    if (rangeObj.test(v)) {
+	      // satisfies(v, range, options)
+	      if (!min || minSV.compare(v) === 1) {
+	        // compare(min, v, true)
+	        min = v;
+	        minSV = new SemVer(min, options);
+	      }
+	    }
+	  });
+	  return min
+	};
+	minSatisfying_1 = minSatisfying;
+	return minSatisfying_1;
+}
+
+var minVersion_1;
+var hasRequiredMinVersion;
+
+function requireMinVersion () {
+	if (hasRequiredMinVersion) return minVersion_1;
+	hasRequiredMinVersion = 1;
+
+	const SemVer = requireSemver$1();
+	const Range = requireRange();
+	const gt = requireGt();
+
+	const minVersion = (range, loose) => {
+	  range = new Range(range, loose);
+
+	  let minver = new SemVer('0.0.0');
+	  if (range.test(minver)) {
+	    return minver
+	  }
+
+	  minver = new SemVer('0.0.0-0');
+	  if (range.test(minver)) {
+	    return minver
+	  }
+
+	  minver = null;
+	  for (let i = 0; i < range.set.length; ++i) {
+	    const comparators = range.set[i];
+
+	    let setMin = null;
+	    comparators.forEach((comparator) => {
+	      // Clone to avoid manipulating the comparator's semver object.
+	      const compver = new SemVer(comparator.semver.version);
+	      switch (comparator.operator) {
+	        case '>':
+	          if (compver.prerelease.length === 0) {
+	            compver.patch++;
+	          } else {
+	            compver.prerelease.push(0);
+	          }
+	          compver.raw = compver.format();
+	          /* fallthrough */
+	        case '':
+	        case '>=':
+	          if (!setMin || gt(compver, setMin)) {
+	            setMin = compver;
+	          }
+	          break
+	        case '<':
+	        case '<=':
+	          /* Ignore maximum versions */
+	          break
+	        /* istanbul ignore next */
+	        default:
+	          throw new Error(`Unexpected operation: ${comparator.operator}`)
+	      }
+	    });
+	    if (setMin && (!minver || gt(minver, setMin))) {
+	      minver = setMin;
+	    }
+	  }
+
+	  if (minver && range.test(minver)) {
+	    return minver
+	  }
+
+	  return null
+	};
+	minVersion_1 = minVersion;
+	return minVersion_1;
+}
+
+var valid;
+var hasRequiredValid;
+
+function requireValid () {
+	if (hasRequiredValid) return valid;
+	hasRequiredValid = 1;
+
+	const Range = requireRange();
+	const validRange = (range, options) => {
+	  try {
+	    // Return '*' instead of '' so that truthiness works.
+	    // This will throw if it's invalid anyway
+	    return new Range(range, options).range || '*'
+	  } catch (er) {
+	    return null
+	  }
+	};
+	valid = validRange;
+	return valid;
+}
+
+var outside_1;
+var hasRequiredOutside;
+
+function requireOutside () {
+	if (hasRequiredOutside) return outside_1;
+	hasRequiredOutside = 1;
+
+	const SemVer = requireSemver$1();
+	const Comparator = requireComparator();
+	const { ANY } = Comparator;
+	const Range = requireRange();
+	const satisfies = requireSatisfies();
+	const gt = requireGt();
+	const lt = requireLt();
+	const lte = requireLte();
+	const gte = requireGte();
+
+	const outside = (version, range, hilo, options) => {
+	  version = new SemVer(version, options);
+	  range = new Range(range, options);
+
+	  let gtfn, ltefn, ltfn, comp, ecomp;
+	  switch (hilo) {
+	    case '>':
+	      gtfn = gt;
+	      ltefn = lte;
+	      ltfn = lt;
+	      comp = '>';
+	      ecomp = '>=';
+	      break
+	    case '<':
+	      gtfn = lt;
+	      ltefn = gte;
+	      ltfn = gt;
+	      comp = '<';
+	      ecomp = '<=';
+	      break
+	    default:
+	      throw new TypeError('Must provide a hilo val of "<" or ">"')
+	  }
+
+	  // If it satisfies the range it is not outside
+	  if (satisfies(version, range, options)) {
+	    return false
+	  }
+
+	  // From now on, variable terms are as if we're in "gtr" mode.
+	  // but note that everything is flipped for the "ltr" function.
+
+	  for (let i = 0; i < range.set.length; ++i) {
+	    const comparators = range.set[i];
+
+	    let high = null;
+	    let low = null;
+
+	    comparators.forEach((comparator) => {
+	      if (comparator.semver === ANY) {
+	        comparator = new Comparator('>=0.0.0');
+	      }
+	      high = high || comparator;
+	      low = low || comparator;
+	      if (gtfn(comparator.semver, high.semver, options)) {
+	        high = comparator;
+	      } else if (ltfn(comparator.semver, low.semver, options)) {
+	        low = comparator;
+	      }
+	    });
+
+	    // If the edge version comparator has a operator then our version
+	    // isn't outside it
+	    if (high.operator === comp || high.operator === ecomp) {
+	      return false
+	    }
+
+	    // If the lowest version comparator has an operator and our version
+	    // is less than it then it isn't higher than the range
+	    if ((!low.operator || low.operator === comp) &&
+	        ltefn(version, low.semver)) {
+	      return false
+	    } else if (low.operator === ecomp && ltfn(version, low.semver)) {
+	      return false
+	    }
+	  }
+	  return true
+	};
+
+	outside_1 = outside;
+	return outside_1;
+}
+
+var gtr_1;
+var hasRequiredGtr;
+
+function requireGtr () {
+	if (hasRequiredGtr) return gtr_1;
+	hasRequiredGtr = 1;
+
+	// Determine if version is greater than all the versions possible in the range.
+	const outside = requireOutside();
+	const gtr = (version, range, options) => outside(version, range, '>', options);
+	gtr_1 = gtr;
+	return gtr_1;
+}
+
+var ltr_1;
+var hasRequiredLtr;
+
+function requireLtr () {
+	if (hasRequiredLtr) return ltr_1;
+	hasRequiredLtr = 1;
+
+	const outside = requireOutside();
+	// Determine if version is less than all the versions possible in the range
+	const ltr = (version, range, options) => outside(version, range, '<', options);
+	ltr_1 = ltr;
+	return ltr_1;
+}
+
+var intersects_1;
+var hasRequiredIntersects;
+
+function requireIntersects () {
+	if (hasRequiredIntersects) return intersects_1;
+	hasRequiredIntersects = 1;
+
+	const Range = requireRange();
+	const intersects = (r1, r2, options) => {
+	  r1 = new Range(r1, options);
+	  r2 = new Range(r2, options);
+	  return r1.intersects(r2, options)
+	};
+	intersects_1 = intersects;
+	return intersects_1;
+}
+
+var simplify;
+var hasRequiredSimplify;
+
+function requireSimplify () {
+	if (hasRequiredSimplify) return simplify;
+	hasRequiredSimplify = 1;
+
+	// given a set of versions and a range, create a "simplified" range
+	// that includes the same versions that the original range does
+	// If the original range is shorter than the simplified one, return that.
+	const satisfies = requireSatisfies();
+	const compare = requireCompare();
+	simplify = (versions, range, options) => {
+	  const set = [];
+	  let first = null;
+	  let prev = null;
+	  const v = versions.sort((a, b) => compare(a, b, options));
+	  for (const version of v) {
+	    const included = satisfies(version, range, options);
+	    if (included) {
+	      prev = version;
+	      if (!first) {
+	        first = version;
+	      }
+	    } else {
+	      if (prev) {
+	        set.push([first, prev]);
+	      }
+	      prev = null;
+	      first = null;
+	    }
+	  }
+	  if (first) {
+	    set.push([first, null]);
+	  }
+
+	  const ranges = [];
+	  for (const [min, max] of set) {
+	    if (min === max) {
+	      ranges.push(min);
+	    } else if (!max && min === v[0]) {
+	      ranges.push('*');
+	    } else if (!max) {
+	      ranges.push(`>=${min}`);
+	    } else if (min === v[0]) {
+	      ranges.push(`<=${max}`);
+	    } else {
+	      ranges.push(`${min} - ${max}`);
+	    }
+	  }
+	  const simplified = ranges.join(' || ');
+	  const original = typeof range.raw === 'string' ? range.raw : String(range);
+	  return simplified.length < original.length ? simplified : range
+	};
+	return simplify;
+}
+
+var subset_1;
+var hasRequiredSubset;
+
+function requireSubset () {
+	if (hasRequiredSubset) return subset_1;
+	hasRequiredSubset = 1;
+
+	const Range = requireRange();
+	const Comparator = requireComparator();
+	const { ANY } = Comparator;
+	const satisfies = requireSatisfies();
+	const compare = requireCompare();
+
+	// Complex range `r1 || r2 || ...` is a subset of `R1 || R2 || ...` iff:
+	// - Every simple range `r1, r2, ...` is a null set, OR
+	// - Every simple range `r1, r2, ...` which is not a null set is a subset of
+	//   some `R1, R2, ...`
+	//
+	// Simple range `c1 c2 ...` is a subset of simple range `C1 C2 ...` iff:
+	// - If c is only the ANY comparator
+	//   - If C is only the ANY comparator, return true
+	//   - Else if in prerelease mode, return false
+	//   - else replace c with `[>=0.0.0]`
+	// - If C is only the ANY comparator
+	//   - if in prerelease mode, return true
+	//   - else replace C with `[>=0.0.0]`
+	// - Let EQ be the set of = comparators in c
+	// - If EQ is more than one, return true (null set)
+	// - Let GT be the highest > or >= comparator in c
+	// - Let LT be the lowest < or <= comparator in c
+	// - If GT and LT, and GT.semver > LT.semver, return true (null set)
+	// - If any C is a = range, and GT or LT are set, return false
+	// - If EQ
+	//   - If GT, and EQ does not satisfy GT, return true (null set)
+	//   - If LT, and EQ does not satisfy LT, return true (null set)
+	//   - If EQ satisfies every C, return true
+	//   - Else return false
+	// - If GT
+	//   - If GT.semver is lower than any > or >= comp in C, return false
+	//   - If GT is >=, and GT.semver does not satisfy every C, return false
+	//   - If GT.semver has a prerelease, and not in prerelease mode
+	//     - If no C has a prerelease and the GT.semver tuple, return false
+	// - If LT
+	//   - If LT.semver is greater than any < or <= comp in C, return false
+	//   - If LT is <=, and LT.semver does not satisfy every C, return false
+	//   - If LT.semver has a prerelease, and not in prerelease mode
+	//     - If no C has a prerelease and the LT.semver tuple, return false
+	// - Else return true
+
+	const subset = (sub, dom, options = {}) => {
+	  if (sub === dom) {
+	    return true
+	  }
+
+	  sub = new Range(sub, options);
+	  dom = new Range(dom, options);
+	  let sawNonNull = false;
+
+	  OUTER: for (const simpleSub of sub.set) {
+	    for (const simpleDom of dom.set) {
+	      const isSub = simpleSubset(simpleSub, simpleDom, options);
+	      sawNonNull = sawNonNull || isSub !== null;
+	      if (isSub) {
+	        continue OUTER
+	      }
+	    }
+	    // the null set is a subset of everything, but null simple ranges in
+	    // a complex range should be ignored.  so if we saw a non-null range,
+	    // then we know this isn't a subset, but if EVERY simple range was null,
+	    // then it is a subset.
+	    if (sawNonNull) {
+	      return false
+	    }
+	  }
+	  return true
+	};
+
+	const minimumVersionWithPreRelease = [new Comparator('>=0.0.0-0')];
+	const minimumVersion = [new Comparator('>=0.0.0')];
+
+	const simpleSubset = (sub, dom, options) => {
+	  if (sub === dom) {
+	    return true
+	  }
+
+	  if (sub.length === 1 && sub[0].semver === ANY) {
+	    if (dom.length === 1 && dom[0].semver === ANY) {
+	      return true
+	    } else if (options.includePrerelease) {
+	      sub = minimumVersionWithPreRelease;
+	    } else {
+	      sub = minimumVersion;
+	    }
+	  }
+
+	  if (dom.length === 1 && dom[0].semver === ANY) {
+	    if (options.includePrerelease) {
+	      return true
+	    } else {
+	      dom = minimumVersion;
+	    }
+	  }
+
+	  const eqSet = new Set();
+	  let gt, lt;
+	  for (const c of sub) {
+	    if (c.operator === '>' || c.operator === '>=') {
+	      gt = higherGT(gt, c, options);
+	    } else if (c.operator === '<' || c.operator === '<=') {
+	      lt = lowerLT(lt, c, options);
+	    } else {
+	      eqSet.add(c.semver);
+	    }
+	  }
+
+	  if (eqSet.size > 1) {
+	    return null
+	  }
+
+	  let gtltComp;
+	  if (gt && lt) {
+	    gtltComp = compare(gt.semver, lt.semver, options);
+	    if (gtltComp > 0) {
+	      return null
+	    } else if (gtltComp === 0 && (gt.operator !== '>=' || lt.operator !== '<=')) {
+	      return null
+	    }
+	  }
+
+	  // will iterate one or zero times
+	  for (const eq of eqSet) {
+	    if (gt && !satisfies(eq, String(gt), options)) {
+	      return null
+	    }
+
+	    if (lt && !satisfies(eq, String(lt), options)) {
+	      return null
+	    }
+
+	    for (const c of dom) {
+	      if (!satisfies(eq, String(c), options)) {
+	        return false
+	      }
+	    }
+
+	    return true
+	  }
+
+	  let higher, lower;
+	  let hasDomLT, hasDomGT;
+	  // if the subset has a prerelease, we need a comparator in the superset
+	  // with the same tuple and a prerelease, or it's not a subset
+	  let needDomLTPre = lt &&
+	    !options.includePrerelease &&
+	    lt.semver.prerelease.length ? lt.semver : false;
+	  let needDomGTPre = gt &&
+	    !options.includePrerelease &&
+	    gt.semver.prerelease.length ? gt.semver : false;
+	  // exception: <1.2.3-0 is the same as <1.2.3
+	  if (needDomLTPre && needDomLTPre.prerelease.length === 1 &&
+	      lt.operator === '<' && needDomLTPre.prerelease[0] === 0) {
+	    needDomLTPre = false;
+	  }
+
+	  for (const c of dom) {
+	    hasDomGT = hasDomGT || c.operator === '>' || c.operator === '>=';
+	    hasDomLT = hasDomLT || c.operator === '<' || c.operator === '<=';
+	    if (gt) {
+	      if (needDomGTPre) {
+	        if (c.semver.prerelease && c.semver.prerelease.length &&
+	            c.semver.major === needDomGTPre.major &&
+	            c.semver.minor === needDomGTPre.minor &&
+	            c.semver.patch === needDomGTPre.patch) {
+	          needDomGTPre = false;
+	        }
+	      }
+	      if (c.operator === '>' || c.operator === '>=') {
+	        higher = higherGT(gt, c, options);
+	        if (higher === c && higher !== gt) {
+	          return false
+	        }
+	      } else if (gt.operator === '>=' && !c.test(gt.semver)) {
+	        return false
+	      }
+	    }
+	    if (lt) {
+	      if (needDomLTPre) {
+	        if (c.semver.prerelease && c.semver.prerelease.length &&
+	            c.semver.major === needDomLTPre.major &&
+	            c.semver.minor === needDomLTPre.minor &&
+	            c.semver.patch === needDomLTPre.patch) {
+	          needDomLTPre = false;
+	        }
+	      }
+	      if (c.operator === '<' || c.operator === '<=') {
+	        lower = lowerLT(lt, c, options);
+	        if (lower === c && lower !== lt) {
+	          return false
+	        }
+	      } else if (lt.operator === '<=' && !c.test(lt.semver)) {
+	        return false
+	      }
+	    }
+	    if (!c.operator && (lt || gt) && gtltComp !== 0) {
+	      return false
+	    }
+	  }
+
+	  // if there was a < or >, and nothing in the dom, then must be false
+	  // UNLESS it was limited by another range in the other direction.
+	  // Eg, >1.0.0 <1.0.1 is still a subset of <2.0.0
+	  if (gt && hasDomLT && !lt && gtltComp !== 0) {
+	    return false
+	  }
+
+	  if (lt && hasDomGT && !gt && gtltComp !== 0) {
+	    return false
+	  }
+
+	  // we needed a prerelease range in a specific tuple, but didn't get one
+	  // then this isn't a subset.  eg >=1.2.3-pre is not a subset of >=1.0.0,
+	  // because it includes prereleases in the 1.2.3 tuple
+	  if (needDomGTPre || needDomLTPre) {
+	    return false
+	  }
+
+	  return true
+	};
+
+	// >=1.2.3 is lower than >1.2.3
+	const higherGT = (a, b, options) => {
+	  if (!a) {
+	    return b
+	  }
+	  const comp = compare(a.semver, b.semver, options);
+	  return comp > 0 ? a
+	    : comp < 0 ? b
+	    : b.operator === '>' && a.operator === '>=' ? b
+	    : a
+	};
+
+	// <=1.2.3 is higher than <1.2.3
+	const lowerLT = (a, b, options) => {
+	  if (!a) {
+	    return b
+	  }
+	  const comp = compare(a.semver, b.semver, options);
+	  return comp < 0 ? a
+	    : comp > 0 ? b
+	    : b.operator === '<' && a.operator === '<=' ? b
+	    : a
+	};
+
+	subset_1 = subset;
+	return subset_1;
+}
+
+var semver;
+var hasRequiredSemver;
+
+function requireSemver () {
+	if (hasRequiredSemver) return semver;
+	hasRequiredSemver = 1;
+
+	// just pre-load all the stuff that index.js lazily exports
+	const internalRe = requireRe();
+	const constants = requireConstants$2();
+	const SemVer = requireSemver$1();
+	const identifiers = requireIdentifiers();
+	const parse = requireParse();
+	const valid = requireValid$1();
+	const clean = requireClean();
+	const inc = requireInc();
+	const diff = requireDiff();
+	const major = requireMajor();
+	const minor = requireMinor();
+	const patch = requirePatch();
+	const prerelease = requirePrerelease();
+	const compare = requireCompare();
+	const rcompare = requireRcompare();
+	const compareLoose = requireCompareLoose();
+	const compareBuild = requireCompareBuild();
+	const sort = requireSort();
+	const rsort = requireRsort();
+	const gt = requireGt();
+	const lt = requireLt();
+	const eq = requireEq$1();
+	const neq = requireNeq();
+	const gte = requireGte();
+	const lte = requireLte();
+	const cmp = requireCmp();
+	const coerce = requireCoerce();
+	const truncate = requireTruncate();
+	const Comparator = requireComparator();
+	const Range = requireRange();
+	const satisfies = requireSatisfies();
+	const toComparators = requireToComparators();
+	const maxSatisfying = requireMaxSatisfying();
+	const minSatisfying = requireMinSatisfying();
+	const minVersion = requireMinVersion();
+	const validRange = requireValid();
+	const outside = requireOutside();
+	const gtr = requireGtr();
+	const ltr = requireLtr();
+	const intersects = requireIntersects();
+	const simplifyRange = requireSimplify();
+	const subset = requireSubset();
+	semver = {
+	  parse,
+	  valid,
+	  clean,
+	  inc,
+	  diff,
+	  major,
+	  minor,
+	  patch,
+	  prerelease,
+	  compare,
+	  rcompare,
+	  compareLoose,
+	  compareBuild,
+	  sort,
+	  rsort,
+	  gt,
+	  lt,
+	  eq,
+	  neq,
+	  gte,
+	  lte,
+	  cmp,
+	  coerce,
+	  truncate,
+	  Comparator,
+	  Range,
+	  satisfies,
+	  toComparators,
+	  maxSatisfying,
+	  minSatisfying,
+	  minVersion,
+	  validRange,
+	  outside,
+	  gtr,
+	  ltr,
+	  intersects,
+	  simplifyRange,
+	  subset,
+	  SemVer,
+	  re: internalRe.re,
+	  src: internalRe.src,
+	  tokens: internalRe.t,
+	  SEMVER_SPEC_VERSION: constants.SEMVER_SPEC_VERSION,
+	  RELEASE_TYPES: constants.RELEASE_TYPES,
+	  compareIdentifiers: identifiers.compareIdentifiers,
+	  rcompareIdentifiers: identifiers.rcompareIdentifiers,
+	};
+	return semver;
+}
+
+var semverExports = requireSemver();
+
+// Interface for getting oneAPI/DLE versions and corresponding download URLs
+class AbstractLinks {
+    versionToURL = new Map();
+    versionToNetworkURL = new Map();
+    get oneapiVersionToURL() {
+        return this.versionToURL;
+    }
+    set oneapiVersionToURL(map) {
+        this.versionToURL = map;
+    }
+    get oneapiVersionToNetworkUrl() {
+        return this.versionToNetworkURL;
+    }
+    set oneapiVersionToNetworkUrl(map) {
+        this.versionToNetworkURL = map;
+    }
+    getAvailableLocalVersions() {
+        return Array.from(this.versionToURL.keys())
+            .map(s => new semverExports.SemVer(s))
+            .sort((a, b) => b.compare(a));
+    }
+    getAvailableNetworkVersions() {
+        return Array.from(this.versionToNetworkURL.keys())
+            .map(s => new semverExports.SemVer(s))
+            .sort((a, b) => b.compare(a));
+    }
+    async getLocalURLFromVersion(version) {
+        const urlString = this.versionToURL.get(`${version}`);
+        if (urlString === undefined) {
+            throw new Error(`Invalid version: ${version}`);
+        }
+        return new URL(urlString);
+    }
+    async getNetworkURLFromVersion(version) {
+        const urlString = this.versionToNetworkURL.get(`${version}`);
+        if (urlString === undefined) {
+            throw new Error(`Invalid version: ${version}`);
+        }
+        return new URL(urlString);
+    }
+    // Backward compatibility aliases
+    getAvailableLocaloneAPIVersions() {
+        return this.getAvailableLocalVersions();
+    }
+    getAvailableNetworkoneAPIVersions() {
+        return this.getAvailableNetworkVersions();
+    }
+    async getLocalURLFromoneAPIVersion(version) {
+        return this.getLocalURLFromVersion(version);
+    }
+    async getNetworkURLFromoneAPIVersion(version) {
+        return this.getNetworkURLFromVersion(version);
+    }
+}
+
+/**
+ * Singleton class for linux links.
+ */
+class LinuxLinks extends AbstractLinks {
+    // Singleton instance
+    static _instance;
+    // Private constructor to prevent instantiation
+    constructor() {
+        super();
+        this.versionToNetworkURL = new Map([
+            [
+                '2026.1.1',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/5996e26b-f48a-42b1-8db0-b002ad0bd8d7/intel-oneapi-toolkit-2026.1.1.33.sh'
+            ],
+            [
+                '2026.1.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/33cb2a22-ddf1-4aa9-8d68-1f5a118acaf2/intel-oneapi-toolkit-2026.1.0.192.sh'
+            ],
+            [
+                '2026.0.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/71180075-e4e3-4c6f-bbbb-19017ed0cf7d/intel-oneapi-toolkit-2026.0.0.198.sh'
+            ],
+            [
+                '2025.1.2',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/73863085-58a9-4dbb-ae65-83497edb05fa/intel-deep-learning-essentials-2025.1.2.13_offline.sh'
+            ],
+            [
+                '2025.1.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e04d067d-4bce-4eed-a6fc-80a5df45c78c/intel-deep-learning-essentials-2025.1.0.581_offline.sh'
+            ]
+        ]);
+        this.versionToURL = new Map([
+            [
+                '2026.1.1',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/5996e26b-f48a-42b1-8db0-b002ad0bd8d7/intel-oneapi-toolkit-2026.1.1.33_offline.sh'
+            ],
+            [
+                '2026.1.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/33cb2a22-ddf1-4aa9-8d68-1f5a118acaf2/intel-oneapi-toolkit-2026.1.0.192_offline.sh'
+            ],
+            [
+                '2026.0.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/71180075-e4e3-4c6f-bbbb-19017ed0cf7d/intel-oneapi-toolkit-2026.0.0.198_offline.sh'
+            ],
+            [
+                '2025.1.2',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/73863085-58a9-4dbb-ae65-83497edb05fa/intel-deep-learning-essentials-2025.1.2.13_offline.sh'
+            ],
+            [
+                '2025.1.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e04d067d-4bce-4eed-a6fc-80a5df45c78c/intel-deep-learning-essentials-2025.1.0.581_offline.sh'
+            ]
+        ]);
+    }
+    async getLocalURLFromVersion(version) {
+        const link = await super.getLocalURLFromVersion(version);
+        const arch = await getArch();
+        if (arch === CPUArch.x86_64) {
+            return new URL(link.toString());
+        }
+        else {
+            throw new Error(`Link only available for x86_64: ${arch}`);
+        }
+    }
+    async getNetworkURLFromVersion(version) {
+        const link = await super.getNetworkURLFromVersion(version);
+        const arch = await getArch();
+        if (arch === CPUArch.x86_64) {
+            return new URL(link.toString());
+        }
+        else {
+            throw new Error(`Link only available for x86_64: ${arch}`);
+        }
+    }
+    async getLocalURLFromoneAPIVersion(version) {
+        return this.getLocalURLFromVersion(version);
+    }
+    async getNetworkURLFromoneAPIVersion(version) {
+        return this.getNetworkURLFromVersion(version);
+    }
+    static get Instance() {
+        return this._instance || (this._instance = new this());
+    }
+}
+
 /**
  * Singleton class for windows links.
  */
 class WindowsLinks extends AbstractLinks {
     // Singleton instance
     static _instance;
-    rocmVersionToNetworkUrl = new Map([
-        [
-            '7.2.0',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q3-Win11-For-HIP.exe'
-        ],
-        [
-            '7.1.1',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe'
-        ],
-        [
-            '6.4.2',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-25.Q3-Win10-Win11-For-HIP.exe'
-        ],
-        [
-            '6.2.4',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe'
-        ],
-        [
-            '6.1.2',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-Win10-Win11-For-HIP.exe'
-        ],
-        [
-            '5.7.1',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q4-Win10-Win11-For-HIP.exe'
-        ],
-        [
-            '5.5.1',
-            'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-Win10-Win11-For-HIP.exe'
-        ]
-    ]);
     // Private constructor to prevent instantiation
     constructor() {
         super();
-        // Map of Rocm SemVer version to download URL
-        this.rocmVersionToURL = new Map([
+        this.versionToNetworkURL = new Map([
             [
-                '7.2.0',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q3-Win11-For-HIP.exe'
+                '2026.1.1',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/0cb67a0d-67f6-410b-868b-f4a0a17ff0cf/intel-oneapi-toolkit-2026.1.1.32.exe'
             ],
             [
-                '7.1.1',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe'
+                '2026.1.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191.exe'
             ],
             [
-                '6.4.2',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-25.Q3-Win10-Win11-For-HIP.exe'
+                '2026.0.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bae85ab1-cfcd-4251-8d42-a0c27949ea33/intel-oneapi-toolkit-2026.0.0.193.exe'
             ],
             [
-                '6.2.4',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe'
+                '2025.3.3',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b60765d1-2b85-4e85-86b6-cb0e9563a699/intel-deep-learning-essentials-2025.3.3.18_offline.exe'
+            ]
+        ]);
+        this.versionToURL = new Map([
+            [
+                '2026.1.1',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/0cb67a0d-67f6-410b-868b-f4a0a17ff0cf/intel-oneapi-toolkit-2026.1.1.32_offline.exe'
             ],
             [
-                '6.1.2',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-Win10-Win11-For-HIP.exe'
+                '2026.1.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191_offline.exe'
             ],
             [
-                '5.7.1',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q4-Win10-Win11-For-HIP.exe'
+                '2026.0.0',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bae85ab1-cfcd-4251-8d42-a0c27949ea33/intel-oneapi-toolkit-2026.0.0.193_offline.exe'
             ],
             [
-                '5.5.1',
-                'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-Win10-Win11-For-HIP.exe'
+                '2025.3.3',
+                'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b60765d1-2b85-4e85-86b6-cb0e9563a699/intel-deep-learning-essentials-2025.3.3.18_offline.exe'
             ]
         ]);
     }
     static get Instance() {
         return this._instance || (this._instance = new this());
     }
-    getAvailableNetworkRocmVersions() {
-        return Array.from(this.rocmVersionToNetworkUrl.keys()).map(s => new semverExports.SemVer(s));
-    }
-    async getLocalURLFromRocmVersion(version) {
-        const link = await super.getLocalURLFromRocmVersion(version);
+    async getLocalURLFromVersion(version) {
+        const link = await super.getLocalURLFromVersion(version);
         return await this.urlForCurrentArch(link, version);
     }
-    async getNetworkURLFromRocmVersion(version) {
-        const urlString = this.rocmVersionToNetworkUrl.get(`${version}`);
-        if (urlString === undefined) {
-            throw new Error(`Invalid version: ${version}`);
-        }
-        return await this.urlForCurrentArch(new URL(urlString), version);
+    async getNetworkURLFromVersion(version) {
+        const link = await super.getNetworkURLFromVersion(version);
+        return await this.urlForCurrentArch(link, version);
     }
-    /**
-     * Patch a x86_64 URL to its arm64 counterpart on arm hosts (based on the version, 13.4.1+)
-     */
+    async getLocalURLFromoneAPIVersion(version) {
+        return this.getLocalURLFromVersion(version);
+    }
+    async getNetworkURLFromoneAPIVersion(version) {
+        return this.getNetworkURLFromVersion(version);
+    }
     async urlForCurrentArch(url, version) {
         const arch = await getArch();
         if (arch !== CPUArch.x86_64) {
             throw new Error(`Link only available for x86_64: ${arch}. Version ${version}`);
         }
         return url;
-        /* // gate older versions that don't have arm64 installers
-        if (version.compare(WindowsLinks.firstArm64Version) < 0) {
-          throw new Error(
-            `Rocm ${version} does not provide a Windows arm64 installer (arm64 builds are available from ${WindowsLinks.firstArm64Version})`
-          )
-        }
-        const x86Marker = '_windows_x86_64'
-        const urlString = url.toString()
-        if (!urlString.includes(x86Marker)) {
-          throw new Error(
-            `Cannot derive Windows arm64 installer URL for Rocm ${version} from ${urlString}`
-          )
-        }
-        return new URL(urlString.replace(x86Marker, '_windows_arm64')) */
     }
 }
 
@@ -94440,15 +92640,11 @@ async function filterReadable(paths) {
 
 // Download helper which returns the installer executable and caches it for next runs
 async function download(version, method, useLocalCache, useGitHubCache) {
-    // First try to find tool with desired version in tool cache (local to machine)
-    const toolName = 'rocm_installer';
+    const toolName = 'oneapi_installer';
     const osType = await getOs();
     const cpuArch = await getArch();
     const osRelease = await getRelease();
     const toolId = `${toolName}-${osType}-${osRelease}-${cpuArch}`;
-    if (osType !== OSType.windows) {
-        throw new Error('ROCm installer download is only supported on Windows');
-    }
     // Path that contains the executable file
     let executableDirectory;
     const cacheKey = `${toolId}-${version}`;
@@ -94457,7 +92653,6 @@ async function download(version, method, useLocalCache, useGitHubCache) {
     if (useLocalCache) {
         const toolPath = toolCacheExports.find(toolId, `${version}`);
         if (toolPath) {
-            // Tool is already in cache
             coreExports.debug(`Found in local machine cache ${toolPath}`);
             executableDirectory = toolPath;
         }
@@ -94476,46 +92671,37 @@ async function download(version, method, useLocalCache, useGitHubCache) {
             coreExports.debug(`Not found in GitHub cache`);
         }
     }
-    // Final option, download tool from AMD servers
+    // Final option, download tool from Intel servers
     if (executableDirectory === undefined) {
         coreExports.debug(`Not found in local/GitHub cache, downloading...`);
-        // Get download URL
         const url = await getDownloadURL(method, version);
-        // Get intsaller filename extension depending on OS
         const fileExtension = getFileExtension(osType);
-        const downloadDirectory = 'rocm_download';
+        const downloadDirectory = 'oneapi_download';
         const destFileName = `${toolId}_${version}.${fileExtension}`;
         const destFilePath = `${downloadDirectory}/${destFileName}`;
-        // Check if file already exists
         if (!(await fileExists(destFilePath))) {
-            coreExports.debug(`File at ${destFilePath} does not exist, downloading`);
-            // Download executable
+            coreExports.debug(`File at ${destFilePath} does not exist, downloading from ${url}`);
             await toolCacheExports.downloadTool(url.toString(), destFilePath);
         }
         else {
             coreExports.debug(`File at ${destFilePath} already exists, skipping download`);
         }
         if (useLocalCache) {
-            // Cache download to local machine cache
             const localCacheDirectory = await toolCacheExports.cacheFile(destFilePath, destFileName, toolId, `${version}`);
             coreExports.debug(`Cached download to local machine cache at ${localCacheDirectory}`);
             executableDirectory = localCacheDirectory;
         }
         if (useGitHubCache && osType !== OSType.windows) {
-            // Move file to GitHub cache directory
             coreExports.debug(`Copying ${destFilePath} to ${cacheDirectory}`);
             await ioExports.mkdirP(cacheDirectory);
             await ioExports.mv(destFilePath, cacheDirectory);
-            // Log full path and files in cache directory
             const filesInCacheDir = await getFilesRecursive(cacheDirectory);
             coreExports.debug(`Files in GitHub cache directory ${cacheDirectory}:`);
             for (const f of filesInCacheDir) {
                 coreExports.debug(f);
             }
-            // Log absolute path
             const absoluteCacheDir = await fs.promises.realpath(cacheDirectory);
             coreExports.debug(`Absolute path of cache directory: ${absoluteCacheDir}`);
-            // Save cache directory to GitHub cache
             const cacheId = await cacheExports.saveCache([cacheDirectory], cacheKey);
             if (cacheId !== -1) {
                 coreExports.debug(`Cached download to GitHub cache with cache id ${cacheId}`);
@@ -94529,16 +92715,14 @@ async function download(version, method, useLocalCache, useGitHubCache) {
         executableDirectory ??= downloadDirectory;
     }
     coreExports.debug(`Executable path ${executableDirectory}`);
-    // String with full executable path
     let fullExecutablePath;
-    // Get list of files in tool cache using readdir recursive helper
     const filesInCache = await getFilesRecursive(executableDirectory);
     coreExports.debug(`Files in tool cache:`);
     for (const f of filesInCache) {
         coreExports.debug(f);
     }
     if (filesInCache.length > 1) {
-        throw new Error(`Got multiple file in tool cache: ${filesInCache.length}`);
+        throw new Error(`Got multiple files in tool cache: ${filesInCache.length}`);
     }
     else if (filesInCache.length === 0) {
         throw new Error(`Got no files in tool cache`);
@@ -94546,12 +92730,9 @@ async function download(version, method, useLocalCache, useGitHubCache) {
     else {
         fullExecutablePath = filesInCache[0];
     }
-    // Make file executable on linux
     if ((await getOs()) === OSType.linux) {
-        // 0755 octal notation permission is: owner(r,w,x), group(r,w,x), other(r,x) where r=read, w=write, x=execute
         await fs.promises.chmod(fullExecutablePath, '0755');
     }
-    // Return full executable path
     return fullExecutablePath;
 }
 function getFileExtension(osType) {
@@ -94559,7 +92740,7 @@ function getFileExtension(osType) {
         case OSType.windows:
             return 'exe';
         case OSType.linux:
-            return 'run';
+            return 'sh';
     }
 }
 async function fileExists(filePath) {
@@ -94575,42 +92756,44 @@ async function fileExists(filePath) {
 }
 async function getDownloadURL(method, version) {
     const links = await getLinks();
-    if (!(links instanceof WindowsLinks)) {
-        throw new TypeError('ROCm installer download is only supported on Windows');
-    }
     switch (method) {
         case 'local':
-            return await links.getLocalURLFromRocmVersion(version);
+            return await links.getLocalURLFromVersion(version);
         case 'network':
-            if (!(links instanceof WindowsLinks)) {
-                coreExports.debug(`Tried to get windows links but got linux links instance`);
-                throw new Error(`Network mode is not supported by linux, shouldn't even get here`);
-            }
-            return links.getNetworkURLFromRocmVersion(version);
+            return await links.getNetworkURLFromVersion(version);
         default:
             throw new Error(`Invalid method: expected either 'local' or 'network', got '${method}'`);
     }
 }
 
+function normalizeVersionString(versionString) {
+    // Normalize strings like 20261.0 -> 2026.1.0, 20261.2 -> 2026.1.2
+    const typoMatch = versionString.match(/^20261\.(\d+)$/);
+    if (typoMatch) {
+        return `2026.1.${typoMatch[1]}`;
+    }
+    return versionString;
+}
 // Helper for converting string to SemVer and verifying it exists in the links
 async function getVersion(versionString, method) {
-    const version = new semverExports.SemVer(versionString);
+    const normalized = normalizeVersionString(versionString);
+    const version = new semverExports.SemVer(normalized);
     const links = await getLinks();
     let versions;
     switch (method) {
         case 'local':
-            versions = links.getAvailableLocalRocmVersions();
+            versions = links.getAvailableLocalVersions();
             break;
         case 'network':
             switch (await getOs()) {
                 case OSType.linux:
-                    // TODO adapt this to actual available network versions for linux
-                    versions = links.getAvailableLocalRocmVersions();
+                    versions = links.getAvailableNetworkVersions();
                     break;
                 case OSType.windows:
-                    versions = links.getAvailableNetworkRocmVersions();
+                    versions = links.getAvailableNetworkVersions();
                     break;
             }
+            break;
     }
     coreExports.debug(`Available versions: ${versions}`);
     if (versions.some(v => v.compare(version) === 0)) {
@@ -97417,85 +95600,15 @@ function requirePath () {
 	return path;
 }
 
-var balancedMatch$1;
-var hasRequiredBalancedMatch$1;
+var braceExpansion;
+var hasRequiredBraceExpansion;
 
-function requireBalancedMatch$1 () {
-	if (hasRequiredBalancedMatch$1) return balancedMatch$1;
-	hasRequiredBalancedMatch$1 = 1;
-	balancedMatch$1 = balanced;
-	function balanced(a, b, str) {
-	  if (a instanceof RegExp) a = maybeMatch(a, str);
-	  if (b instanceof RegExp) b = maybeMatch(b, str);
+function requireBraceExpansion () {
+	if (hasRequiredBraceExpansion) return braceExpansion;
+	hasRequiredBraceExpansion = 1;
+	var balanced = requireBalancedMatch();
 
-	  var r = range(a, b, str);
-
-	  return r && {
-	    start: r[0],
-	    end: r[1],
-	    pre: str.slice(0, r[0]),
-	    body: str.slice(r[0] + a.length, r[1]),
-	    post: str.slice(r[1] + b.length)
-	  };
-	}
-
-	function maybeMatch(reg, str) {
-	  var m = str.match(reg);
-	  return m ? m[0] : null;
-	}
-
-	balanced.range = range;
-	function range(a, b, str) {
-	  var begs, beg, left, right, result;
-	  var ai = str.indexOf(a);
-	  var bi = str.indexOf(b, ai + 1);
-	  var i = ai;
-
-	  if (ai >= 0 && bi > 0) {
-	    if(a===b) {
-	      return [ai, bi];
-	    }
-	    begs = [];
-	    left = str.length;
-
-	    while (i >= 0 && !result) {
-	      if (i == ai) {
-	        begs.push(i);
-	        ai = str.indexOf(a, i + 1);
-	      } else if (begs.length == 1) {
-	        result = [ begs.pop(), bi ];
-	      } else {
-	        beg = begs.pop();
-	        if (beg < left) {
-	          left = beg;
-	          right = bi;
-	        }
-
-	        bi = str.indexOf(b, i + 1);
-	      }
-
-	      i = ai < bi && ai >= 0 ? ai : bi;
-	    }
-
-	    if (begs.length) {
-	      result = [ left, right ];
-	    }
-	  }
-
-	  return result;
-	}
-	return balancedMatch$1;
-}
-
-var braceExpansion$1;
-var hasRequiredBraceExpansion$1;
-
-function requireBraceExpansion$1 () {
-	if (hasRequiredBraceExpansion$1) return braceExpansion$1;
-	hasRequiredBraceExpansion$1 = 1;
-	var balanced = requireBalancedMatch$1();
-
-	braceExpansion$1 = expandTop;
+	braceExpansion = expandTop;
 
 	var escSlash = '\0SLASH'+Math.random()+'\0';
 	var escOpen = '\0OPEN'+Math.random()+'\0';
@@ -97887,7 +96000,7 @@ function requireBraceExpansion$1 () {
 
 	  return acc
 	}
-	return braceExpansion$1;
+	return braceExpansion;
 }
 
 var minimatch_1;
@@ -97914,7 +96027,7 @@ function requireMinimatch () {
 
 	const GLOBSTAR = Symbol('globstar **');
 	minimatch.GLOBSTAR = GLOBSTAR;
-	const expand = requireBraceExpansion$1();
+	const expand = requireBraceExpansion();
 
 	const plTypes = {
 	  '!': { open: '(?:(?!(?:', close: '))[^/]*?)'},
@@ -105212,7 +103325,7 @@ var hasRequiredPolyfills;
 function requirePolyfills () {
 	if (hasRequiredPolyfills) return polyfills;
 	hasRequiredPolyfills = 1;
-	var constants = require$$0$f;
+	var constants = require$$0$g;
 
 	var origCwd = process.cwd;
 	var cwd = null;
@@ -120553,479 +118666,6 @@ function requireIsPlainObject () {
 var commonjs$4 = {};
 
 var commonjs$3 = {};
-
-var balancedMatch;
-var hasRequiredBalancedMatch;
-
-function requireBalancedMatch () {
-	if (hasRequiredBalancedMatch) return balancedMatch;
-	hasRequiredBalancedMatch = 1;
-	balancedMatch = balanced;
-	function balanced(a, b, str) {
-	  if (a instanceof RegExp) a = maybeMatch(a, str);
-	  if (b instanceof RegExp) b = maybeMatch(b, str);
-
-	  var r = range(a, b, str);
-
-	  return r && {
-	    start: r[0],
-	    end: r[1],
-	    pre: str.slice(0, r[0]),
-	    body: str.slice(r[0] + a.length, r[1]),
-	    post: str.slice(r[1] + b.length)
-	  };
-	}
-
-	function maybeMatch(reg, str) {
-	  var m = str.match(reg);
-	  return m ? m[0] : null;
-	}
-
-	balanced.range = range;
-	function range(a, b, str) {
-	  var begs, beg, left, right, result;
-	  var ai = str.indexOf(a);
-	  var bi = str.indexOf(b, ai + 1);
-	  var i = ai;
-
-	  if (ai >= 0 && bi > 0) {
-	    if(a===b) {
-	      return [ai, bi];
-	    }
-	    begs = [];
-	    left = str.length;
-
-	    while (i >= 0 && !result) {
-	      if (i == ai) {
-	        begs.push(i);
-	        ai = str.indexOf(a, i + 1);
-	      } else if (begs.length == 1) {
-	        result = [ begs.pop(), bi ];
-	      } else {
-	        beg = begs.pop();
-	        if (beg < left) {
-	          left = beg;
-	          right = bi;
-	        }
-
-	        bi = str.indexOf(b, i + 1);
-	      }
-
-	      i = ai < bi && ai >= 0 ? ai : bi;
-	    }
-
-	    if (begs.length) {
-	      result = [ left, right ];
-	    }
-	  }
-
-	  return result;
-	}
-	return balancedMatch;
-}
-
-var braceExpansion;
-var hasRequiredBraceExpansion;
-
-function requireBraceExpansion () {
-	if (hasRequiredBraceExpansion) return braceExpansion;
-	hasRequiredBraceExpansion = 1;
-	var balanced = requireBalancedMatch();
-
-	braceExpansion = expandTop;
-
-	var escSlash = '\0SLASH'+Math.random()+'\0';
-	var escOpen = '\0OPEN'+Math.random()+'\0';
-	var escClose = '\0CLOSE'+Math.random()+'\0';
-	var escComma = '\0COMMA'+Math.random()+'\0';
-	var escPeriod = '\0PERIOD'+Math.random()+'\0';
-
-	var EXPANSION_MAX = 100000;
-
-	// `EXPANSION_MAX` caps the *number* of expansions, but not their length. An
-	// input like `'{a,b}'.repeat(1500)` stays under that count - its output is
-	// truncated to 100k results - while making every result ~1500 characters
-	// long. The result set, and the intermediate arrays built while combining
-	// brace sets, then grow large enough to exhaust memory and crash the process
-	// (CVE-2026-14257). `EXPANSION_MAX_LENGTH` bounds the total number of
-	// characters the accumulator may hold at any point, so memory stays flat no
-	// matter how many brace groups are chained. The limit sits well above any
-	// realistic expansion (100k results hitting `EXPANSION_MAX` measure ~1M
-	// characters) so legitimate input is unaffected.
-	var EXPANSION_MAX_LENGTH = 4000000;
-
-	// `expand` recurses once per level of brace *nesting* - both when expanding a
-	// set's comma members and when re-wrapping a set whose body is a single part.
-	// The CVE-2026-14257 fix made the *tail* iterative (recursion on `m.post`, one
-	// level per chained group), which left nesting depth unbounded: about 3,100
-	// levels of `{{{...a,b...}}}` - only ~6KB of input - exhausted the native stack
-	// and crashed the process. `EXPANSION_MAX_DEPTH` bounds how deep the parser
-	// will follow nesting. It sits far above any realistic pattern and well below
-	// the depth at which the stack runs out.
-	var EXPANSION_MAX_DEPTH = 1000;
-
-	// Bash keeps a quirk where a brace group followed by a comma set still expands
-	// (`{a},b}`). The parser implements it by rewriting the string and restarting
-	// the scan, absorbing one `}` per pass. `n` trailing braces therefore cost `n`
-	// full passes over a string that itself grows by one `escClose` sentinel each
-	// time - quadratic in `n`, with a ~26x constant from the sentinel's length.
-	// 128KB of `'{a}' + '}'.repeat(n) + ',z}'` blocked the event loop for 27
-	// seconds to produce two results. `EXPANSION_MAX_REWRITES` bounds how many
-	// times the scan may restart. Real `{a},b}` input needs a handful.
-	var EXPANSION_MAX_REWRITES = 1000;
-
-	function numeric(str) {
-	  return parseInt(str, 10) == str
-	    ? parseInt(str, 10)
-	    : str.charCodeAt(0);
-	}
-
-	function escapeBraces(str) {
-	  return str.split('\\\\').join(escSlash)
-	            .split('\\{').join(escOpen)
-	            .split('\\}').join(escClose)
-	            .split('\\,').join(escComma)
-	            .split('\\.').join(escPeriod);
-	}
-
-	function unescapeBraces(str) {
-	  return str.split(escSlash).join('\\')
-	            .split(escOpen).join('{')
-	            .split(escClose).join('}')
-	            .split(escComma).join(',')
-	            .split(escPeriod).join('.');
-	}
-
-
-	// Like `target.push(...items)` but doesn't overflow the stack
-	function pushAll(target, items) {
-	  for (var i = 0; i < items.length; i++) {
-	    target.push(items[i]);
-	  }
-	}
-
-	// Basically just str.split(","), but handling cases
-	// where we have nested braced sections, which should be
-	// treated as individual members, like {a,{b,c},d}
-	function parseCommaParts(str) {
-	  var parts = [];
-
-	  // Walk the brace groups iteratively. Recursing on `post` once per group let a
-	  // chain of them exhaust the stack - the parsing-side counterpart to
-	  // the `expand` overflow fixed for CVE-2026-14257, and not something `max` or
-	  // `maxLength` can bound, since it happens before expansion.
-	  //
-	  // The part the next chunk continues
-	  var carry = '';
-
-	  for (;;) {
-	    var m = balanced('{', '}', str);
-
-	    if (!m) {
-	      var tail = str.split(',');
-	      tail[0] = carry + tail[0];
-	      pushAll(parts, tail);
-	      return parts;
-	    }
-
-	    var pre = m.pre;
-	    var body = m.body;
-	    var post = m.post;
-	    var p = pre.split(',');
-
-	    p[0] = carry + p[0];
-	    p[p.length-1] += '{' + body + '}';
-
-	    if (!post.length) {
-	      pushAll(parts, p);
-	      return parts;
-	    }
-
-	    carry = p.pop();
-	    pushAll(parts, p);
-	    str = post;
-	  }
-	}
-
-	function expandTop(str, options) {
-	  if (!str)
-	    return [];
-
-	  options = options || {};
-	  var max = options.max == null ? EXPANSION_MAX : options.max;
-	  var maxLength = options.maxLength == null ? EXPANSION_MAX_LENGTH : options.maxLength;
-	  var maxDepth = options.maxDepth == null ? EXPANSION_MAX_DEPTH : options.maxDepth;
-	  var maxRewrites = options.maxRewrites == null ? EXPANSION_MAX_REWRITES : options.maxRewrites;
-
-	  // I don't know why Bash 4.3 does this, but it does.
-	  // Anything starting with {} will have the first two bytes preserved
-	  // but *only* at the top level, so {},a}b will not expand to anything,
-	  // but a{},b}c will be expanded to [a}c,abc].
-	  // One could argue that this is a bug in Bash, but since the goal of
-	  // this module is to match Bash's rules, we escape a leading {}
-	  if (str.substr(0, 2) === '{}') {
-	    str = '\\{\\}' + str.substr(2);
-	  }
-
-	  return expand(escapeBraces(str), max, maxLength, maxDepth, 0, maxRewrites, true).map(unescapeBraces);
-	}
-
-	function embrace(str) {
-	  return '{' + str + '}';
-	}
-	function isPadded(el) {
-	  return /^-?0\d/.test(el);
-	}
-
-	function lte(i, y) {
-	  return i <= y;
-	}
-	function gte(i, y) {
-	  return i >= y;
-	}
-
-	// Build `{ acc[a] + pre + values[v] }` for every combination, capping the
-	// number of results at `max` and the total number of characters at `maxLength`.
-	// This is the one place output grows, so bounding it here keeps the single
-	// accumulator - and therefore memory - flat regardless of how many brace groups
-	// are combined (CVE-2026-14257).
-	function combine(
-	  acc,
-	  pre,
-	  values,
-	  max,
-	  maxLength,
-	  dropEmpties
-	) {
-	  var out = [];
-	  var length = 0;
-	  for (var a = 0; a < acc.length; a++) {
-	    for (var v = 0; v < values.length; v++) {
-	      if (out.length >= max) return out
-	      var expansion = acc[a] + pre + values[v];
-	      // Bash drops empty results at the top level. Skip them before they count
-	      // against `max`, so `max` bounds the number of *kept* results.
-	      if (dropEmpties && !expansion) continue
-	      if (length + expansion.length > maxLength) return out
-	      out.push(expansion);
-	      length += expansion.length;
-	    }
-	  }
-	  return out
-	}
-
-	// The expansion values of a single numeric (`1..5`) or alphabetic (`a..e..2`)
-	// sequence body.
-	function expandSequence(
-	  body,
-	  isAlphaSequence,
-	  max,
-	  maxLength
-	) {
-	  var n = body.split(/\.\./);
-	  var N = [];
-	  // A sequence body always splits into two or three parts, but the compiler
-	  // can't know that.
-	  /* c8 ignore start */
-	  if (n[0] === undefined || n[1] === undefined) {
-	    return N
-	  }
-	  /* c8 ignore stop */
-	  var x = numeric(n[0]);
-	  var y = numeric(n[1]);
-	  var width = Math.max(n[0].length, n[1].length);
-	  var incr =
-	    n.length === 3 && n[2] !== undefined ?
-	      Math.max(Math.abs(numeric(n[2])), 1)
-	    : 1;
-	  var test = lte;
-	  var reverse = y < x;
-	  if (reverse) {
-	    incr *= -1;
-	    test = gte;
-	  }
-	  var pad = n.some(isPadded);
-
-	  var length = 0;
-	  for (var i = x; test(i, y) && N.length < max; i += incr) {
-	    var c;
-	    if (isAlphaSequence) {
-	      c = String.fromCharCode(i);
-	      if (c === '\\') {
-	        c = '';
-	      }
-	    } else {
-	      c = String(i);
-	      if (pad) {
-	        var need = width - c.length;
-	        if (need > 0) {
-	          var z = new Array(need + 1).join('0');
-	          if (i < 0) {
-	            c = '-' + z + c.slice(1);
-	          } else {
-	            c = z + c;
-	          }
-	        }
-	      }
-	    }
-	    if (length + c.length > maxLength) break
-	    N.push(c);
-	    length += c.length;
-	  }
-	  return N
-	}
-
-	function expand(
-	  str,
-	  max,
-	  maxLength,
-	  maxDepth,
-	  depth,
-	  maxRewrites,
-	  isTop
-	) {
-	  // Too deeply nested to keep following: treat the rest as literal, the same
-	  // way a group that cannot expand is already handled. Truncating rather than
-	  // throwing keeps expansion total, matching `max` and `maxLength`.
-	  if (depth > maxDepth) {
-	    return [str];
-	  }
-
-	  // Consume the string's top-level brace groups left to right, threading a
-	  // running set of combined prefixes (`acc`). Expanding the tail iteratively -
-	  // rather than recursing on `m.post` once per group - keeps the native stack
-	  // depth constant, so deeply chained input (`'{a,b}'.repeat(3000)`) can no
-	  // longer overflow the stack, and leaves a single accumulator whose size
-	  // `maxLength` bounds directly (CVE-2026-14257).
-	  var acc = [''];
-
-	  // Bash drops empty results, but only when the *first* top-level group is a
-	  // comma set - a sequence like `{a..\}` may legitimately yield ''. The drop
-	  // is on the final strings, so it is applied to whichever `combine` produces
-	  // them (the one with no brace set left in the tail).
-	  // How many times the `{a},b}` rewrite below has restarted the scan. Each pass
-	  // re-reads the whole string, so leaving this unbounded is quadratic.
-	  var rewrites = 0;
-	  var dropEmpties = false;
-	  var firstGroup = true;
-
-	  for (;;) {
-	    const m = balanced('{', '}', str);
-
-	    // No brace set left: the rest of the string is literal.
-	    if (!m) {
-	      return combine(acc, str, [''], max, maxLength, dropEmpties)
-	    }
-
-	    // no need to expand pre, since it is guaranteed to be free of brace-sets
-	    const pre = m.pre;
-
-	    if (/\$$/.test(pre)) {
-	      acc = combine(
-	        acc,
-	        pre + '{' + m.body + '}',
-	        [''],
-	        max,
-	        maxLength,
-	        dropEmpties && !m.post.length
-	      );
-	      firstGroup = false;
-	      if (!m.post.length) break
-	      str = m.post;
-	      continue
-	    }
-
-	    var isNumericSequence = /^-?\d+\.\.-?\d+(?:\.\.-?\d+)?$/.test(m.body);
-	    var isAlphaSequence = /^[a-zA-Z]\.\.[a-zA-Z](?:\.\.-?\d+)?$/.test(m.body);
-	    var isSequence = isNumericSequence || isAlphaSequence;
-	    var isOptions = m.body.indexOf(',') >= 0;
-	    if (!isSequence && !isOptions) {
-	      // {a},b}
-	      if (rewrites < maxRewrites && m.post.match(/,(?!,).*\}/)) {
-	        rewrites++;
-	        str = m.pre + '{' + m.body + escClose + m.post;
-	        isTop = true;
-	        continue;
-	      }
-	      // Nothing here expands, so the whole remaining string is literal.
-	      return combine(
-	        acc,
-	        pre + '{' + m.body + '}' + m.post,
-	        [''],
-	        max,
-	        maxLength,
-	        dropEmpties
-	      )
-	    }
-
-	    if (firstGroup) {
-	      dropEmpties = isTop && !isSequence;
-	      firstGroup = false;
-	    }
-
-	    var values;
-	    if (isSequence) {
-	      values = expandSequence(m.body, isAlphaSequence, max, maxLength);
-	    } else {
-	      var n = parseCommaParts(m.body);
-	      if (n.length === 1 && n[0] !== undefined) {
-	        // x{{a,b}}y ==> x{a}y x{b}y
-	        n = expand(n[0], max, maxLength, maxDepth, depth + 1, maxRewrites, false).map(embrace);
-	        //XXX is this necessary? Can't seem to hit it in tests.
-	        /* c8 ignore start */
-	        if (n.length === 1) {
-	          acc = combine(
-	            acc,
-	            pre + n[0],
-	            [''],
-	            max,
-	            maxLength,
-	            dropEmpties && !m.post.length
-	          );
-	          if (!m.post.length) break
-	          str = m.post;
-	          continue
-	        }
-	        /* c8 ignore stop */
-	      }
-
-	      // Values that `combine` is going to drop as empty produce no result, so
-	      // they must not count against `max` - otherwise `{a,,b}` with `max: 2`
-	      // would stop at `['a', '']` and yield one result instead of two. Skipping
-	      // them outright keeps `values` bounded while leaving `max` a bound on
-	      // *kept* results.
-	      var dropsEmpties = dropEmpties && !m.post.length && !pre;
-	      for (var d = 0; dropsEmpties && d < acc.length; d++) {
-	        if (acc[d]) {
-	          dropsEmpties = false;
-	        }
-	      }
-
-	      values = [];
-	      var valuesLength = 0;
-	      outer: for (var j = 0; j < n.length; j++) {
-	        var expanded = expand(n[j], max, maxLength, maxDepth, depth + 1, maxRewrites, false);
-	        for (var k = 0; k < expanded.length; k++) {
-	          var v = expanded[k];
-	          if (dropsEmpties && !v) continue
-	          if (values.length >= max || valuesLength + v.length > maxLength) {
-	            break outer
-	          }
-	          values.push(v);
-	          valuesLength += v.length;
-	        }
-	      }
-	    }
-
-	    acc = combine(acc, pre, values, max, maxLength, dropEmpties && !m.post.length);
-	    if (!m.post.length) break
-	    str = m.post;
-	  }
-
-	  return acc
-	}
-	return braceExpansion;
-}
 
 var assertValidPattern = {};
 
@@ -136397,7 +134037,7 @@ function requireZip () {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.createZipUploadStream = exports.ZipUploadStream = exports.DEFAULT_COMPRESSION_LEVEL = void 0;
 		const stream = __importStar(require$$0$c);
-		const promises_1 = require$$1$8;
+		const promises_1 = require$$1$7;
 		const archiver = __importStar(requireArchiver());
 		const core = __importStar(requireCore$1());
 		const config_1 = requireConfig();
@@ -215220,7 +212860,7 @@ function requireTr46 () {
 	if (hasRequiredTr46) return tr46;
 	hasRequiredTr46 = 1;
 
-	var punycode = require$$0$g;
+	var punycode = require$$0$h;
 	var mappingTable = require$$1;
 
 	var PROCESSING_OPTIONS = {
@@ -215420,7 +213060,7 @@ function requireUrlStateMachine () {
 	if (hasRequiredUrlStateMachine) return urlStateMachine.exports;
 	hasRequiredUrlStateMachine = 1;
 	(function (module) {
-		const punycode = require$$0$g;
+		const punycode = require$$0$h;
 		const tr46 = requireTr46();
 
 		const specialSchemes = {
@@ -224154,7 +221794,7 @@ function requireDownloadArtifact () {
 	};
 	Object.defineProperty(downloadArtifact, "__esModule", { value: true });
 	downloadArtifact.downloadArtifactInternal = downloadArtifact.downloadArtifactPublic = downloadArtifact.streamExtractExternal = void 0;
-	const promises_1 = __importDefault(require$$1$8);
+	const promises_1 = __importDefault(require$$1$7);
 	const crypto = __importStar(require$$0$6);
 	const stream = __importStar(require$$0$c);
 	const github = __importStar(requireGithub());
@@ -226630,7 +224270,7 @@ function requireArtifact () {
 
 var artifactExports = requireArtifact();
 
-async function install(executablePath, version, subPackagesArray = [], _linuxLocalArgsArray = [], method = 'local', logFileSuffix = '') {
+async function install(executablePath, version, subPackagesArray = [], linuxLocalArgsArray = [], method = 'local', logFileSuffix = '', product = 'toolkit') {
     const archType = await getArch();
     if (archType !== CPUArch.x86_64) {
         throw new Error(`Unsupported architecture: ${archType}. Only x86_64 is supported.`);
@@ -226639,21 +224279,16 @@ async function install(executablePath, version, subPackagesArray = [], _linuxLoc
     if (osType !== OSType.windows && osType !== OSType.linux) {
         throw new Error(`Unsupported OS: ${osType}. Only Windows and Linux are supported.`);
     }
-    // Linux uses apt-installer only
-    if (osType === OSType.linux) {
-        coreExports.debug(`Installing ROCm ${version} using apt-installer`);
+    // Linux using APT installer
+    if (osType === OSType.linux && (method === 'network' || method === 'apt')) {
+        coreExports.debug(`Installing oneAPI ${version} using apt-installer`);
         await aptSetup(version);
-        await aptInstall(version, subPackagesArray);
+        await aptInstall(version, subPackagesArray, [], product);
         return;
     }
-    // Windows: only accepts versions as in WindowsLinks
-    const winLinks = WindowsLinks.Instance;
-    const availableVersions = winLinks.getAvailableLocalRocmVersions();
-    if (!availableVersions.some(v => v.compare(version) === 0)) {
-        throw new Error(`Version not available: ${version}`);
-    }
-    const logPath = path__default.join(os.tmpdir(), 'installer_log.txt');
-    // Execution options which contain callback functions for stdout and stderr of install process
+    // Offline / local installer execution
+    const logDir = os.tmpdir();
+    const logPath = path__default.join(logDir, 'installer_log.txt');
     const execOptions = {
         listeners: {
             stdout: (data) => {
@@ -226664,111 +224299,237 @@ async function install(executablePath, version, subPackagesArray = [], _linuxLoc
             }
         }
     };
-    // Windows uses exe file installer only through PowerShell
-    const command = 'powershell';
-    const installArgs = [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        `$process = Start-Process -FilePath "${executablePath}" -ArgumentList "-install","-log","${logPath}" -NoNewWindow -Wait -PassThru; exit $process.ExitCode`
-    ];
-    // Run installer
+    if (osType === OSType.windows) {
+        const winLinks = WindowsLinks.Instance;
+        const availableVersions = winLinks.getAvailableLocalVersions();
+        if (!availableVersions.some(v => v.compare(version) === 0)) {
+            coreExports.warning(`Version ${version} not explicitly in windows-links map, attempting install`);
+        }
+        const installerArgs = [
+            '-s',
+            '-a',
+            '--silent',
+            '--eula',
+            'accept',
+            '--action',
+            'install'
+        ];
+        if (subPackagesArray.length > 0) {
+            installerArgs.push('--components', subPackagesArray.join(':'));
+        }
+        installerArgs.push('--log-dir', logDir);
+        const argsListFormatted = installerArgs.map(arg => `"${arg}"`).join(',');
+        const powershellCommand = [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `$process = Start-Process -FilePath "${executablePath}" -ArgumentList ${argsListFormatted} -NoNewWindow -Wait -PassThru; exit $process.ExitCode`
+        ];
+        try {
+            coreExports.debug(`Running Windows installer: ${executablePath}`);
+            const exitCode = await execExports.exec('powershell', powershellCommand, execOptions);
+            coreExports.debug(`Installer exit code: ${exitCode}`);
+        }
+        catch (error) {
+            coreExports.warning(`Error during installation: ${error}`);
+            throw error;
+        }
+    }
+    else if (osType === OSType.linux) {
+        const linuxLinks = LinuxLinks.Instance;
+        const availableVersions = linuxLinks.getAvailableLocalVersions();
+        if (!availableVersions.some(v => v.compare(version) === 0)) {
+            coreExports.warning(`Version ${version} not explicitly in linux-links map, attempting install`);
+        }
+        const installerArgs = [
+            executablePath,
+            '-s',
+            '-a',
+            '--silent',
+            '--eula',
+            'accept',
+            '--action',
+            'install'
+        ];
+        if (subPackagesArray.length > 0) {
+            installerArgs.push('--components', subPackagesArray.join(':'));
+        }
+        if (linuxLocalArgsArray.length > 0) {
+            installerArgs.push(...linuxLocalArgsArray);
+        }
+        try {
+            coreExports.debug(`Running Linux installer script: ${executablePath}`);
+            await execExports.exec('chmod', ['+x', executablePath]);
+            const exitCode = await execExports.exec('sudo', ['sh', ...installerArgs], execOptions);
+            coreExports.debug(`Installer exit code: ${exitCode}`);
+        }
+        catch (error) {
+            coreExports.warning(`Error during installation: ${error}`);
+            throw error;
+        }
+    }
+    // Always upload installation log regardless of error
     try {
-        coreExports.debug(`Running install executable: ${executablePath}`);
-        const exitCode = await execExports.exec(command, installArgs, execOptions);
-        coreExports.debug(`Installer exit code: ${exitCode}`);
-    }
-    catch (error) {
-        coreExports.warning(`Error during installation: ${error}`);
-        throw error;
-    }
-    finally {
-        // Always upload installation log regardless of error
         const osRelease = await getRelease();
         const artifactClient = new artifactExports.DefaultArtifactClient();
+        const artifactName = `oneapi-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`;
         if (osType === OSType.windows) {
             if (fs.existsSync(logPath)) {
-                const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`;
-                try {
-                    await artifactClient.uploadArtifact(artifactName, [logPath], os.tmpdir());
-                }
-                catch (error) {
-                    coreExports.debug(`Upload artifact error: ${error}`);
-                }
+                await artifactClient.uploadArtifact(artifactName, [logPath], logDir);
             }
         }
         else if (osType === OSType.linux) {
-            const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`;
-            const candidates = ['/var/log/rocm-installer.log'];
+            const candidates = ['/var/log/intel_installer.log', logPath];
             const files = await filterReadable(candidates);
-            const username = os.userInfo().username;
             if (files.length > 0) {
-                for (const file of files) {
-                    await execExports.exec(`sudo chmod 644 ${file}`);
-                    await execExports.exec(`sudo chown ${username} ${file}`);
-                }
-                const rootDirectory = '/var/log';
-                try {
-                    await artifactClient.uploadArtifact(artifactName, files, rootDirectory);
-                }
-                catch (error) {
-                    coreExports.debug(`Upload artifact error: ${error}`);
-                }
-            }
-            else {
-                coreExports.debug(`No log file to upload`);
+                await artifactClient.uploadArtifact(artifactName, files, path__default.dirname(files[0]));
             }
         }
+    }
+    catch (error) {
+        coreExports.debug(`Upload artifact error: ${error}`);
     }
 }
 
+const COMPONENTS = [
+    {
+        name: 'compiler',
+        envVar: 'CMPLR_ROOT',
+        subDirSegments: ['compiler', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'dnnl',
+        envVar: 'DNNLROOT',
+        subDirSegments: ['dnnl', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'dpl',
+        envVar: 'DPL_ROOT',
+        subDirSegments: ['dpl', 'latest'],
+        addBinToPath: false,
+        addLibToLdLibraryPath: false
+    },
+    {
+        name: 'ipp',
+        envVar: 'IPPROOT',
+        subDirSegments: ['ipp', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'ippcp',
+        envVar: 'IPPCPROOT',
+        subDirSegments: ['ippcp', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'mkl',
+        envVar: 'MKLROOT',
+        subDirSegments: ['mkl', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'mpi',
+        envVar: 'I_MPI_ROOT',
+        subDirSegments: ['mpi', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'ocloc',
+        subDirSegments: ['ocloc', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: false
+    },
+    {
+        name: 'tbb',
+        envVar: 'TBBROOT',
+        subDirSegments: ['tbb', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    },
+    {
+        name: 'tcm',
+        envVar: 'TCM_ROOT',
+        subDirSegments: ['tcm', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: false
+    },
+    {
+        name: 'umf',
+        envVar: 'UMF_ROOT',
+        subDirSegments: ['umf', 'latest'],
+        addBinToPath: true,
+        addLibToLdLibraryPath: true
+    }
+];
 async function updatePath(version) {
     const osType = await getOs();
-    let rocmPath;
+    const pathHelper = osType === OSType.linux ? path$1.posix : path$1.win32;
+    let oneapiPath;
     switch (osType) {
         case OSType.linux:
-            // Standard installation directory structure for versioned AMD ROCm on Linux
-            rocmPath = `/opt/rocm-${version.major}.${version.minor}`;
+            oneapiPath = '/opt/intel/oneapi';
             break;
         case OSType.windows:
-            // Default AMD path layout convention on Windows systems
-            rocmPath = `C:\\Program Files\\AMD\\ROCm\\${version.major}.${version.minor}`;
+            oneapiPath = 'C:\\Program Files (x86)\\Intel\\oneAPI';
             break;
         default:
-            throw new Error('Unsupported operating system detected for ROCm setup');
+            throw new Error('Unsupported operating system detected for oneAPI setup');
     }
-    coreExports.debug(`ROCm path resolved to: ${rocmPath}`);
+    coreExports.debug(`oneAPI root resolved to: ${oneapiPath}`);
     const versionMajorMinor = `${version.major}_${version.minor}`;
     const versionFull = `${version.major}_${version.minor}_${version.patch}`;
-    if (osType === OSType.windows) {
-        coreExports.exportVariable('HIP_PATH', rocmPath);
-        coreExports.exportVariable(`HIP_PATH_${versionMajorMinor}`, rocmPath);
-        coreExports.exportVariable(`HIP_PATH_${versionFull}`, rocmPath);
-    }
-    else {
-        coreExports.exportVariable('ROCM_PATH', rocmPath);
-        coreExports.exportVariable(`ROCM_PATH_${versionMajorMinor}`, rocmPath);
-        coreExports.exportVariable(`ROCM_PATH_${versionFull}`, rocmPath);
-    }
-    // Append ROCm binaries location to standard system execution path
-    const binPath = path$1.join(rocmPath, 'bin');
-    coreExports.debug(`Adding binaries folder to PATH: ${binPath}`);
-    coreExports.addPath(binPath);
-    // Manage Linux specific dynamic runtime linker setups
+    coreExports.exportVariable('ONEAPI_ROOT', oneapiPath);
+    coreExports.exportVariable('ONEAPI_PATH', oneapiPath);
+    coreExports.exportVariable('ONEAPI_VERSION', version.toString());
+    coreExports.exportVariable(`ONEAPI_ROOT_${versionMajorMinor}`, oneapiPath);
+    coreExports.exportVariable(`ONEAPI_ROOT_${versionFull}`, oneapiPath);
+    // Add root bin to PATH
+    const rootBinPath = pathHelper.join(oneapiPath, 'bin');
+    coreExports.debug(`Adding root binaries folder to PATH: ${rootBinPath}`);
+    coreExports.addPath(rootBinPath);
+    // Export component root environment variables and add bin to PATH
+    const libPathsToExport = [];
     if (osType === OSType.linux) {
-        // Get LD_LIBRARY_PATH
-        const environment = globalThis.process;
-        const libPath = environment?.env?.LD_LIBRARY_PATH ?? '';
-        // Crucial ROCm divergence: ROCm packages shared object files inside
-        // a root 'lib/' folder layout instead of the standard CUDA 'lib64/' directory.
-        const rocmLibPath = path$1.join(rocmPath, 'lib');
-        // Add path reference array checks to protect against duplicate definitions
-        if (!libPath.split(':').includes(rocmLibPath)) {
-            coreExports.debug(`Appending tracking context to LD_LIBRARY_PATH: ${rocmLibPath}`);
-            coreExports.exportVariable('LD_LIBRARY_PATH', libPath ? `${rocmLibPath}${path$1.delimiter}${libPath}` : rocmLibPath);
+        libPathsToExport.push(pathHelper.join(oneapiPath, 'lib'));
+    }
+    for (const component of COMPONENTS) {
+        const componentRoot = pathHelper.join(oneapiPath, ...component.subDirSegments);
+        if (component.envVar) {
+            coreExports.debug(`Exporting ${component.envVar}=${componentRoot}`);
+            coreExports.exportVariable(component.envVar, componentRoot);
+        }
+        if (component.addBinToPath) {
+            const componentBin = pathHelper.join(componentRoot, 'bin');
+            coreExports.debug(`Adding component bin to PATH: ${componentBin}`);
+            coreExports.addPath(componentBin);
+        }
+        if (component.addLibToLdLibraryPath && osType === OSType.linux) {
+            libPathsToExport.push(pathHelper.join(componentRoot, 'lib'));
         }
     }
-    return rocmPath;
+    // Manage Linux dynamic runtime linker setup
+    if (osType === OSType.linux) {
+        const environment = globalThis.process;
+        const libPath = environment?.env?.LD_LIBRARY_PATH ?? '';
+        const currentLibs = libPath.split(':').filter(Boolean);
+        const newLibs = libPathsToExport.filter(p => !currentLibs.includes(p));
+        if (newLibs.length > 0) {
+            const combined = libPath
+                ? `${newLibs.join(':')}:${libPath}`
+                : newLibs.join(':');
+            coreExports.debug(`Appending libraries to LD_LIBRARY_PATH: ${newLibs.join(':')}`);
+            coreExports.exportVariable('LD_LIBRARY_PATH', combined);
+        }
+    }
+    return oneapiPath;
 }
 
 async function parsePackages(subPackages, parameterName) {
@@ -226789,15 +224550,18 @@ async function run() {
     try {
         // Only Windows and Linux on x86_64 are supported
         const osType = await getOs();
-        const rocm = coreExports.getInput('rocm');
-        coreExports.debug(`Desired Rocm version: ${rocm}`);
+        const oneapi = coreExports.getInput('oneapi') || coreExports.getInput('oneapi') || '2026.1.1';
+        coreExports.debug(`Desired oneAPI version: ${oneapi}`);
+        const product = coreExports.getInput('product') || 'toolkit';
+        coreExports.debug(`Desired product: ${product}`);
         const subPackagesArgName = 'sub-packages';
         const subPackages = coreExports.getInput(subPackagesArgName);
         coreExports.debug(`Desired subPackages: ${subPackages}`);
-        const nonRocmSubPackagesArgName = 'non-rocm-sub-packages';
-        const nonRocmSubPackages = coreExports.getInput(nonRocmSubPackagesArgName);
-        coreExports.debug(`Desired nonRocmsubPackages: ${nonRocmSubPackages}`);
-        const methodString = coreExports.getInput('method');
+        const nonOneapiSubPackagesArgName = 'non-oneapi-sub-packages';
+        const nonOneapiSubPackages = coreExports.getInput(nonOneapiSubPackagesArgName) ||
+            coreExports.getInput('non-oneapi-sub-packages');
+        coreExports.debug(`Desired nonOneapiSubPackages: ${nonOneapiSubPackages}`);
+        const methodString = coreExports.getInput('method') || 'local';
         coreExports.debug(`Desired method: ${methodString}`);
         const linuxLocalArgs = coreExports.getInput('linux-local-args');
         coreExports.debug(`Desired local linux args: ${linuxLocalArgs}`);
@@ -226809,13 +224573,13 @@ async function run() {
         coreExports.debug(`Desired log file suffix: ${logFileSuffix}`);
         // Parse subPackages array
         const subPackagesArray = await parsePackages(subPackages, subPackagesArgName);
-        // Parse nonRocmSubPackages array
-        const nonRocmSubPackagesArray = await parsePackages(nonRocmSubPackages, nonRocmSubPackagesArgName);
+        // Parse nonOneapiSubPackages array
+        const nonOneapiSubPackagesArray = await parsePackages(nonOneapiSubPackages, nonOneapiSubPackagesArgName);
         // Parse method
         const methodParsed = parseMethod(methodString);
         coreExports.debug(`Parsed method: ${methodParsed}`);
         // Parse version string
-        const version = await getVersion(rocm, methodParsed);
+        const version = await getVersion(oneapi, methodParsed);
         // Parse linuxLocalArgs array
         let linuxLocalArgsArray = [];
         if (linuxLocalArgs && linuxLocalArgs.trim() !== '') {
@@ -226829,39 +224593,28 @@ async function run() {
                 throw new Error(errString);
             }
         }
-        // Check if subPackages are specified in 'local' method on Linux
-        if (methodParsed === 'local' &&
-            subPackagesArray.length > 0 &&
-            (await getOs()) === OSType.linux) {
-            throw new Error(`Subpackages on 'local' method is not supported on Linux, use 'network' instead`);
-        }
-        // Linux only installs using the apt AMD repo
+        // Check if APT installer should be used on Linux
         const useAptInstall = await useApt(methodParsed);
-        if (useAptInstall || osType === OSType.linux) {
-            // Setup aptitude repos
+        if (useAptInstall) {
             await aptSetup(version);
-            // Install packages
-            const installResult = await aptInstall(version, subPackagesArray, nonRocmSubPackagesArray);
+            const installResult = await aptInstall(version, subPackagesArray, nonOneapiSubPackagesArray, product);
             coreExports.debug(`Install result: ${installResult}`);
         }
-        else if (osType === OSType.windows) {
-            // Windows downloads the exe binaries and installs
+        else if (osType === OSType.windows || osType === OSType.linux) {
             const executablePath = await download(version, methodParsed, useLocalCache, useGitHubCache);
-            await install(executablePath, version, subPackagesArray, linuxLocalArgsArray, methodString, logFileSuffix);
+            await install(executablePath, version, subPackagesArray, linuxLocalArgsArray, methodString, logFileSuffix, product);
         }
         else {
-            throw new Error(`Install packeages only suuported in wonws or linux, current os, got '${osType}'`);
+            throw new Error(`Install packages only supported on Windows or Linux, current os: '${osType}'`);
         }
-        // Add Rocm environment variables to GitHub environment variables
-        const rocmPath = await updatePath(version);
+        // Add oneAPI environment variables to GitHub environment variables
+        const oneapiPath = await updatePath(version);
         // Set output variables
-        coreExports.setOutput('rocm', rocm);
-        if (osType === OSType.windows) {
-            coreExports.setOutput('HIP_PATH', rocmPath);
-        }
-        else {
-            coreExports.setOutput('ROCM_PATH', rocmPath);
-        }
+        coreExports.setOutput('oneapi', version.toString());
+        coreExports.setOutput('ONEAPI_ROOT', oneapiPath);
+        coreExports.setOutput('ONEAPI_PATH', oneapiPath);
+        // Backward compatibility outputs
+        coreExports.setOutput('oneapi', version.toString());
     }
     catch (error) {
         if (error instanceof Error) {

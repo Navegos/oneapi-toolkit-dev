@@ -3,23 +3,16 @@ import {OSType, getOs} from './platform.js'
 import {Method} from './method.js'
 import {SemVer} from 'semver'
 import {exec} from '@actions/exec'
-import {execReturnOutput} from './run-command.js'
 import {CPUArch, getArch} from './arch.js'
-import {LinuxLinks} from './links/linux-links.js'
-
-function verifyLinuxVersion(version: SemVer): void {
-  const linuxLinks = LinuxLinks.Instance
-  const availableVersions = linuxLinks.getAvailableLocalRocmVersions()
-  if (!availableVersions.some(v => v.compare(version) === 0)) {
-    throw new Error(`Version not available: ${version}`)
-  }
-}
 
 export async function useApt(method: Method): Promise<boolean> {
-  return method === 'network' && (await getOs()) === OSType.linux
+  return (
+    (method === 'network' || (method as string) === 'apt') &&
+    (await getOs()) === OSType.linux
+  )
 }
 
-export async function aptSetup(version: SemVer): Promise<void> {
+export async function aptSetup(version?: SemVer): Promise<void> {
   const osType = await getOs()
   const archType = await getArch()
   if (osType !== OSType.linux) {
@@ -32,57 +25,44 @@ export async function aptSetup(version: SemVer): Promise<void> {
       `apt setup can only be run on x86_64 runners! Current arch type: ${archType}`
     )
   }
-  verifyLinuxVersion(version)
-  core.debug(`Setup packages for ROCm ${version}`)
 
-  const rocmVersion =
-    version.patch === 0
-      ? `${version.major}.${version.minor}`
-      : `${version.major}.${version.minor}.${version.patch}`
+  core.debug(
+    `Setup APT repository for Intel oneAPI ${version ? version.toString() : ''}`
+  )
 
-  let codename = await execReturnOutput('lsb_release', ['-cs'])
-  if (!codename) {
-    codename = 'ubuntu'
-  }
+  const gpgKeyUrl =
+    'https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB'
+  const keyringPath = '/usr/share/keyrings/oneapi-archive-keyring.gpg'
+  const listPath = '/etc/apt/sources.list.d/oneAPI.list'
+  const repoEntry = `deb [signed-by=${keyringPath}] https://apt.repos.intel.com/oneapi all main`
 
-  const gpgKeyUrl = 'https://repo.radeon.com/rocm/rocm.gpg.key'
-  const keyringPath = '/etc/apt/keyrings/rocm.gpg'
-  const pinPath = '/etc/apt/preferences.d/rocm-pin-600'
-  const listPath = '/etc/apt/sources.list.d/rocm.list'
-  const repoUrl = `https://repo.radeon.com/rocm/apt/${rocmVersion}`
-
-  core.debug(`ROCm version string: ${rocmVersion}`)
-  core.debug(`Distribution codename: ${codename}`)
+  core.debug(`GPG key URL: ${gpgKeyUrl}`)
   core.debug(`Keyring path: ${keyringPath}`)
-  core.debug(`Repo URL: ${repoUrl}`)
+  core.debug(`Sources list path: ${listPath}`)
+  core.debug(`Repository entry: ${repoEntry}`)
 
-  core.debug('Adding ROCm GPG key')
-  await exec('sudo mkdir --parents --mode=0755 /etc/apt/keyrings')
+  core.debug('Adding Intel oneAPI GPG key')
+  await exec('sudo mkdir --parents --mode=0755 /usr/share/keyrings')
   await exec('bash', [
     '-c',
     `wget -qO - ${gpgKeyUrl} | gpg --yes --dearmor | sudo tee ${keyringPath} > /dev/null`
   ])
 
-  core.debug('Setting ROCm repository pin priority')
+  core.debug('Configuring Intel oneAPI APT repository')
   await exec('bash', [
     '-c',
-    String.raw`echo -e "Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600" | sudo tee ${pinPath} > /dev/null`
+    `echo "${repoEntry}" | sudo tee ${listPath} > /dev/null`
   ])
 
-  core.debug(`Adding ROCm repository`)
-  await exec('bash', [
-    '-c',
-    `echo "deb [arch=amd64 signed-by=${keyringPath}] ${repoUrl} ${codename} main" | sudo tee ${listPath} > /dev/null`
-  ])
-
-  core.debug('Updating apt repository list')
+  core.debug('Updating apt repository index')
   await exec('sudo apt-get update')
 }
 
 export async function aptInstall(
   version: SemVer,
   subPackages: string[] = [],
-  nonRocmSubPackages: string[] = []
+  nonOneapiSubPackages: string[] = [],
+  product: string = 'toolkit'
 ): Promise<number> {
   const osType = await getOs()
   const archType = await getArch()
@@ -96,19 +76,32 @@ export async function aptInstall(
       `apt install can only be run on x86_64 runners! Current arch type: ${archType}`
     )
   }
-  verifyLinuxVersion(version)
-  if (subPackages.length === 0 && nonRocmSubPackages.length === 0) {
-    // Install default ROCm development package
-    const packageName = 'rocm-dev'
-    core.debug(`Install package: ${packageName}`)
-    return await exec('sudo apt-get -y install', [packageName])
+
+  if (subPackages.length === 0 && nonOneapiSubPackages.length === 0) {
+    const isDLE = product === 'deep-learning-essentials' || product === 'dle'
+    const baseName = isDLE
+      ? 'intel-deep-learning-essentials'
+      : 'intel-oneapi-toolkit'
+    // Install versioned package if available or base package
+    const packageName = `${baseName}-${version.major}.${version.minor}.${version.patch}`
+    core.debug(`Attempting to install package: ${packageName}`)
+    try {
+      return await exec('sudo apt-get -y install', [packageName])
+    } catch {
+      core.debug(
+        `Specific version package ${packageName} not found, installing base package ${baseName}`
+      )
+      return await exec('sudo apt-get -y install', [baseName])
+    }
   } else {
     // Only install specified packages
     const prefixedSubPackages = subPackages.map(subPackage =>
-      subPackage.startsWith('rocm-') ? subPackage : `rocm-${subPackage}`
+      subPackage.startsWith('intel-')
+        ? subPackage
+        : `intel-oneapi-${subPackage}`
     )
-    const allPackages = prefixedSubPackages.concat(nonRocmSubPackages)
-    core.debug(`Only install subpackages: ${allPackages.join(' ')}`)
+    const allPackages = prefixedSubPackages.concat(nonOneapiSubPackages)
+    core.debug(`Installing specified subpackages: ${allPackages.join(' ')}`)
     return await exec('sudo apt-get -y install', allPackages)
   }
 }

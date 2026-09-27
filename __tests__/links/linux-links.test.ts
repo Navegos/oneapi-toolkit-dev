@@ -2,9 +2,9 @@ import {AbstractLinks} from '../../src/links/links'
 import {LinuxLinks} from '../../src/links/linux-links'
 import {SemVer} from 'semver'
 
-test.concurrent('Linux Rocm versions in descending order', async () => {
+test.concurrent('Linux oneAPI versions in descending order', async () => {
   const wLinks: AbstractLinks = LinuxLinks.Instance
-  const versions = wLinks.getAvailableLocalRocmVersions()
+  const versions = wLinks.getAvailableLocaloneAPIVersions()
   for (let i = 0; i < versions.length - 1; i++) {
     const versionA: SemVer = versions[i]
     const versionB: SemVer = versions[i + 1]
@@ -13,10 +13,11 @@ test.concurrent('Linux Rocm versions in descending order', async () => {
 })
 
 test.concurrent(
-  'Linux Rocm version to URL map contains valid URLs',
+  'Linux oneAPI version to URL map contains valid URLs',
   async () => {
-    for (const version of LinuxLinks.Instance.getAvailableLocalRocmVersions()) {
-      const url = await LinuxLinks.Instance.getLocalURLFromRocmVersion(version)
+    for (const version of LinuxLinks.Instance.getAvailableLocaloneAPIVersions()) {
+      const url =
+        await LinuxLinks.Instance.getLocalURLFromoneAPIVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }
@@ -24,6 +25,6 @@ test.concurrent(
 
 test.concurrent('There is at least linux 1 version url pair', async () => {
   expect(
-    LinuxLinks.Instance.getAvailableLocalRocmVersions().length
+    LinuxLinks.Instance.getAvailableLocaloneAPIVersions().length
   ).toBeGreaterThanOrEqual(1)
 })

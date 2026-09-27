@@ -1,9 +1,9 @@
 # Contributing
 
-## Adding new ROCm versions
+## Adding new oneAPI versions
 
-All ROCm versions are visible on the
-[NVIDIA ROCm toolkit archive](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)
+All oneAPI versions are visible on the
+[Intel(r) oneAPI toolkit archive](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit-download.html)
 
 When adding new versions, the following files should be updated:
 
@@ -12,7 +12,7 @@ When adding new versions, the following files should be updated:
   To get the linux link you should get the link for the `runfile (local)`
   option, the distribution doesn't matter as long as the architecture is
   `x86_64`, see the image below: ![Linux link copy](images/linux-link.jpg) Copy
-  the link and paste it in a new entry of the `rocmVersionToURL` map:
+  the link and paste it in a new entry of the `oneapiVersionToURL` map:
   ![Linux link paste](images/linux-link-code.jpg)
 
 - `src/links/windows-links.ts`
@@ -30,12 +30,12 @@ When adding new versions, the following files should be updated:
 
   ![Windows link local copy](images/windows-link-local.jpg)
 
-  Then add a new entry in the `rocmVersionToURL` map with the link copied above:
+  Then add a new entry in the `oneapiVersionToURL` map with the link copied above:
   ![Windows link local paste](images/windows-link-local-code.jpg)
 
   #### Windows - Network installer:
 
   ![Windows link network copy](images/windows-link-network.jpg)
 
-  Add a new entry in the `rocmVersionToNetworkUrl` map with the link copied in
+  Add a new entry in the `oneapiVersionToNetworkUrl` map with the link copied in
   the above: ![Windows link network paste](images/windows-link-network-code.jpg)

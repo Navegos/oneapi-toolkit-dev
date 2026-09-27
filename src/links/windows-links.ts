@@ -9,69 +9,44 @@ export class WindowsLinks extends AbstractLinks {
   // Singleton instance
   private static _instance: WindowsLinks
 
-  private readonly rocmVersionToNetworkUrl: Map<string, string> = new Map([
-    [
-      '7.2.0',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q3-Win11-For-HIP.exe'
-    ],
-    [
-      '7.1.1',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe'
-    ],
-    [
-      '6.4.2',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-25.Q3-Win10-Win11-For-HIP.exe'
-    ],
-    [
-      '6.2.4',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe'
-    ],
-    [
-      '6.1.2',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-Win10-Win11-For-HIP.exe'
-    ],
-    [
-      '5.7.1',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q4-Win10-Win11-For-HIP.exe'
-    ],
-    [
-      '5.5.1',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-Win10-Win11-For-HIP.exe'
-    ]
-  ])
-
   // Private constructor to prevent instantiation
   private constructor() {
     super()
-    // Map of Rocm SemVer version to download URL
-    this.rocmVersionToURL = new Map([
+    this.versionToNetworkURL = new Map([
       [
-        '7.2.0',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q3-Win11-For-HIP.exe'
+        '2026.1.1',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/0cb67a0d-67f6-410b-868b-f4a0a17ff0cf/intel-oneapi-toolkit-2026.1.1.32.exe'
       ],
       [
-        '7.1.1',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe'
+        '2026.1.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191.exe'
       ],
       [
-        '6.4.2',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-25.Q3-Win10-Win11-For-HIP.exe'
+        '2026.0.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bae85ab1-cfcd-4251-8d42-a0c27949ea33/intel-oneapi-toolkit-2026.0.0.193.exe'
       ],
       [
-        '6.2.4',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe'
+        '2025.3.3',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b60765d1-2b85-4e85-86b6-cb0e9563a699/intel-deep-learning-essentials-2025.3.3.18_offline.exe'
+      ]
+    ])
+
+    this.versionToURL = new Map([
+      [
+        '2026.1.1',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/0cb67a0d-67f6-410b-868b-f4a0a17ff0cf/intel-oneapi-toolkit-2026.1.1.32_offline.exe'
       ],
       [
-        '6.1.2',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-Win10-Win11-For-HIP.exe'
+        '2026.1.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191_offline.exe'
       ],
       [
-        '5.7.1',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q4-Win10-Win11-For-HIP.exe'
+        '2026.0.0',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bae85ab1-cfcd-4251-8d42-a0c27949ea33/intel-oneapi-toolkit-2026.0.0.193_offline.exe'
       ],
       [
-        '5.5.1',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-Win10-Win11-For-HIP.exe'
+        '2025.3.3',
+        'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b60765d1-2b85-4e85-86b6-cb0e9563a699/intel-deep-learning-essentials-2025.3.3.18_offline.exe'
       ]
     ])
   }
@@ -80,28 +55,24 @@ export class WindowsLinks extends AbstractLinks {
     return this._instance || (this._instance = new this())
   }
 
-  getAvailableNetworkRocmVersions(): SemVer[] {
-    return Array.from(this.rocmVersionToNetworkUrl.keys()).map(
-      s => new SemVer(s)
-    )
-  }
-
-  async getLocalURLFromRocmVersion(version: SemVer): Promise<URL> {
-    const link = await super.getLocalURLFromRocmVersion(version)
+  async getLocalURLFromVersion(version: SemVer): Promise<URL> {
+    const link = await super.getLocalURLFromVersion(version)
     return await this.urlForCurrentArch(link, version)
   }
 
-  async getNetworkURLFromRocmVersion(version: SemVer): Promise<URL> {
-    const urlString = this.rocmVersionToNetworkUrl.get(`${version}`)
-    if (urlString === undefined) {
-      throw new Error(`Invalid version: ${version}`)
-    }
-    return await this.urlForCurrentArch(new URL(urlString), version)
+  async getNetworkURLFromVersion(version: SemVer): Promise<URL> {
+    const link = await super.getNetworkURLFromVersion(version)
+    return await this.urlForCurrentArch(link, version)
   }
 
-  /**
-   * Patch a x86_64 URL to its arm64 counterpart on arm hosts (based on the version, 13.4.1+)
-   */
+  async getLocalURLFromoneAPIVersion(version: SemVer): Promise<URL> {
+    return this.getLocalURLFromVersion(version)
+  }
+
+  async getNetworkURLFromoneAPIVersion(version: SemVer): Promise<URL> {
+    return this.getNetworkURLFromVersion(version)
+  }
+
   private async urlForCurrentArch(url: URL, version: SemVer): Promise<URL> {
     const arch: CPUArch = await getArch()
     if (arch !== CPUArch.x86_64) {
@@ -110,19 +81,5 @@ export class WindowsLinks extends AbstractLinks {
       )
     }
     return url
-    /* // gate older versions that don't have arm64 installers
-    if (version.compare(WindowsLinks.firstArm64Version) < 0) {
-      throw new Error(
-        `Rocm ${version} does not provide a Windows arm64 installer (arm64 builds are available from ${WindowsLinks.firstArm64Version})`
-      )
-    }
-    const x86Marker = '_windows_x86_64'
-    const urlString = url.toString()
-    if (!urlString.includes(x86Marker)) {
-      throw new Error(
-        `Cannot derive Windows arm64 installer URL for Rocm ${version} from ${urlString}`
-      )
-    }
-    return new URL(urlString.replace(x86Marker, '_windows_arm64')) */
   }
 }

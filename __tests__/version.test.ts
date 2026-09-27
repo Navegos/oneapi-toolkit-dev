@@ -6,7 +6,7 @@ import {expect, test} from '@jest/globals'
 test.concurrent.each<Method>(['local', 'network'])(
   'Successfully parse correct version for method %s',
   async method => {
-    const versionString = '5.5.1'
+    const versionString = '2026.1.1'
     try {
       const version = await getVersion(versionString, method)
       expect(version).toBeInstanceOf(SemVer)

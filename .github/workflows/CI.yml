@@ -33,7 +33,7 @@ jobs:
             windows-2022
           ]
         method: [local, network]
-        rocm: [5.5.1]
+        oneapi: [2026.1.1]
     runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -68,42 +68,36 @@ jobs:
         id: test-action
         uses: ./
         with:
-          rocm: ${{ matrix.rocm }}
+          oneapi: ${{ matrix.oneapi }}
           method: ${{matrix.method}}
           log-file-suffix: '${{matrix.method}}-${{matrix.os}}'
 
-      - name: Run the action on this runner with hip-sdk and rocblas subpackages
-          (Linux)
+      - name: Run the action on this runner with compiler and mkl subpackages (Linux)
         if: runner.os == 'Linux' && matrix.method == 'network'
         uses: ./
         with:
           method: ${{matrix.method}}
-          sub-packages: '["hip-sdk"]'
-          non-rocm-sub-packages: '["rocblas"]'
-          log-file-suffix: 'hip-sdk-rocblas-${{matrix.method}}-${{matrix.os}}'
+          sub-packages: '["compiler-dpcpp-cpp"]'
+          non-oneapi-sub-packages: '["intel-oneapi-mkl"]'
+          log-file-suffix: 'compiler-mkl-${{matrix.method}}-${{matrix.os}}'
 
-      - name: Print output rocm version
-        run: echo "${{ steps.test-action.outputs.rocm }}"
+      - name: Print output oneapi version
+        run: echo "${{ steps.test-action.outputs.oneapi }}"
 
       - name: Print output paths
         run: |
-          echo "ROCM_PATH: ${{ steps.test-action.outputs.ROCM_PATH }}"
-          echo "HIP_PATH: ${{ steps.test-action.outputs.HIP_PATH }}"
-
-      - name: Test if hipcc is available
-        run: hipcc --version
+          echo "ONEAPI_ROOT: ${{ steps.test-action.outputs.ONEAPI_ROOT }}"
+          echo "ONEAPI_PATH: ${{ steps.test-action.outputs.ONEAPI_PATH }}"
 
       - name: List paths (windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          ls $env:HIP_PATH
-          ls $env:HIP_PATH\bin
-          ls $env:HIP_PATH\include
+          ls $env:ONEAPI_ROOT
+          ls $env:ONEAPI_ROOT\bin -ErrorAction SilentlyContinue
 
       - name: List paths (linux)
         if: runner.os == 'Linux'
         run: |
-          ls $ROCM_PATH
-          ls $ROCM_PATH/bin
-          ls $ROCM_PATH/include
+          ls -la $ONEAPI_ROOT
+          ls -la $ONEAPI_ROOT/bin || true

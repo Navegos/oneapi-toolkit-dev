@@ -1,24 +1,27 @@
 {
-  "name": "rocm-toolkit-dev",
-  "description": "GitHub Action to install the AMD ROCm Toolkit",
+  "name": "oneapi-toolkit-dev",
+  "description": "GitHub Action to install the Intel® oneAPI Toolkit and Intel® Deep Learning Essentials",
   "version": "0.2.40",
   "author": "@DevelVitorF",
   "type": "module",
   "private": true,
-  "homepage": "https://github.com/Navegos/rocm-toolkit-dev",
+  "homepage": "https://github.com/Navegos/oneapi-toolkit-dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Navegos/rocm-toolkit-dev.git"
+    "url": "git+https://github.com/Navegos/oneapi-toolkit-dev.git"
   },
   "bugs": {
-    "url": "https://github.com/Navegos/rocm-toolkit-dev/issues"
+    "url": "https://github.com/Navegos/oneapi-toolkit-dev/issues"
   },
   "keywords": [
     "actions",
-    "rocm",
-    "rocm-toolkit",
+    "oneapi",
+    "oneapi-toolkit",
+    "deep-learning-essentials",
     "github-actions",
-    "amd",
+    "intel",
+    "sycl",
+    "dpcpp",
     "toolkit"
   ],
   "exports": {
